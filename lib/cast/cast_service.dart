@@ -61,7 +61,7 @@ abstract class CastController {
   Future<void> dispose();
 }
 
-/// Uygulama seviyesi cast servisi: dart_cast'i zanzibarr'ın ihtiyaçlarına
+/// Uygulama seviyesi cast servisi: dart_cast'i Zanzibarr'ın ihtiyaçlarına
 /// indirger. Chromecast birincil hedef; AirPlay best-effort (alıcı desteği
 /// donanıma bağlı). DLNA bu turda kapsam dışı.
 class AppCastService implements CastController {

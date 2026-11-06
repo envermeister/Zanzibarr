@@ -13,7 +13,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>Zanzibarr</string>
+	<key>CFBundleDisplayName</key>
+	<string>Zanzibarr</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -26,7 +28,7 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<!-- Cast (TV'ye yansıtma): LAN cihaz keşfi için yerel ağ erişimi. -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>zanzibarr discovers Chromecast and AirPlay devices on your local network to cast video to your TV.</string>
+	<string>Zanzibarr discovers Chromecast and AirPlay devices on your local network to cast video to your TV.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_googlecast._tcp</string>

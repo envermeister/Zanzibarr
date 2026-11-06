@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/zanzibarr-logo.png" alt="zanzibarr" width="128" height="128">
+  <img src="assets/zanzibarr-logo.png" alt="Zanzibarr" width="128" height="128">
 </p>
 
-<h1 align="center">zanzibarr</h1>
+<h1 align="center">Zanzibarr</h1>
 
 <p align="center">
   <strong>Stream anything from Usenet. Own nothing. Wait for nothing.</strong>
@@ -13,18 +13,18 @@
   <a href="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml"><img src="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml/badge.svg" alt="Android build"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Android%20%C2%B7%20Android%20TV-blue" alt="platforms">
   <img src="https://img.shields.io/badge/tests-255%20Rust%20%2B%20166%20Flutter-brightgreen" alt="tests">
-  <a href="https://buymeacoffee.com/envermeister"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20zanzibarr-FFDD00?logo=buy-me-a-coffee&logoColor=black" alt="Support on Buy Me a Coffee"></a>
-  <a href="https://ko-fi.com/envermeister"><img src="https://img.shields.io/badge/Ko--fi-support%20zanzibarr-F16061?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
+  <a href="https://buymeacoffee.com/envermeister"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20Zanzibarr-FFDD00?logo=buy-me-a-coffee&logoColor=black" alt="Support on Buy Me a Coffee"></a>
+  <a href="https://ko-fi.com/envermeister"><img src="https://img.shields.io/badge/Ko--fi-support%20Zanzibarr-F16061?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
 ---
 
-zanzibarr turns Usenet into your personal streaming library. Point it at any `.nzb` and the video starts playing in seconds — **no download queue, no waiting for the full file, no disk space sacrificed**. Scrub to the final scene of a 4K remux before the first act would have finished downloading. It feels like magic; it's really just a very disciplined engine.
+Zanzibarr turns Usenet into your personal streaming library. Point it at any `.nzb` and the video starts playing in seconds — **no download queue, no waiting for the full file, no disk space sacrificed**. Scrub to the final scene of a 4K remux before the first act would have finished downloading. It feels like magic; it's really just a very disciplined engine.
 
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/demo.gif" alt="zanzibarr demo" width="720">
+  <img src="docs/screenshots/demo.gif" alt="Zanzibarr demo" width="720">
 </p>
 
 <p align="center">
@@ -44,7 +44,7 @@ zanzibarr turns Usenet into your personal streaming library. Point it at any `.n
   <p align="center"><img src="docs/screenshots/home_light.png" alt="Home — light" width="720"></p>
 </details>
 
-## Why zanzibarr is different
+## Why Zanzibarr is different
 
 **Play instantly, never download**
 The Rust engine maps every seek position to the exact Usenet segments that hold it, fetches only those, decodes yEnc on the fly and serves the result through a lazy, range-aware local stream. Pause the player and the network goes quiet. Close the app and nothing is left behind on your disk.
@@ -82,7 +82,7 @@ Auto-hiding controls, double-click to seek ±10 s, click-to-pause, frame steppin
 Native apps for **macOS**, **Windows**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode). One codebase, no Electron, no compromises.
 
 **Your credentials stay yours**
-Your Usenet login lives exclusively in the operating system's secure keychain — never in files, never in logs, never on a server. zanzibarr is fully on-device: no accounts, no telemetry, no cloud.
+Your Usenet login lives exclusively in the operating system's secure keychain — never in files, never in logs, never on a server. Zanzibarr is fully on-device: no accounts, no telemetry, no cloud.
 
 ## How it works
 
@@ -108,7 +108,7 @@ Everything heavy — parsing, decoding, archive surgery, NNTP networking — is 
 2. Open the settings gear and add your Usenet provider's NNTP host, port, username and password. They're stored in the OS keychain.
 3. Drop in any `.nzb` from your favorite indexer and press play.
 
-You need your own Usenet provider account and NZB sources — zanzibarr is the player, not the library.
+You need your own Usenet provider account and NZB sources — Zanzibarr is the player, not the library.
 
 ## Building from source
 
@@ -155,8 +155,8 @@ The **Linux** build links against the system libmpv — install the runtime firs
 
 ## Support the project
 
-zanzibarr is free and open source, built in spare time. If it saved you a download queue, you can buy the next coffee that funds the engine on [Buy Me a Coffee](https://buymeacoffee.com/envermeister) or [Ko-fi](https://ko-fi.com/envermeister). One-off or monthly — both keep the commits coming.
+Zanzibarr is free and open source, built in spare time. If it saved you a download queue, you can buy the next coffee that funds the engine on [Buy Me a Coffee](https://buymeacoffee.com/envermeister) or [Ko-fi](https://ko-fi.com/envermeister). One-off or monthly — both keep the commits coming.
 
 ## A note on responsibility
 
-zanzibarr is a neutral playback engine. You are responsible for the content you access and for complying with the laws of your jurisdiction and the terms of your Usenet provider.
+Zanzibarr is a neutral playback engine. You are responsible for the content you access and for complying with the laws of your jurisdiction and the terms of your Usenet provider.

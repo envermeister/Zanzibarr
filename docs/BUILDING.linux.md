@@ -1,4 +1,4 @@
-# Building zanzibarr on Ubuntu 24.04
+# Building Zanzibarr on Ubuntu 24.04
 
 > **Note:** Linux desktop is now built by CI (`.github/workflows/linux-build.yml`).
 > This guide covers building from source yourself — thanks to **@sanderjo**

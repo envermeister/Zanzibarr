@@ -1,4 +1,4 @@
-# zanzibarr — AI Devir Promptu
+# Zanzibarr — AI Devir Promptu
 
 **Nasıl kullanılır:** Yeni bir Claude / ChatGPT / Codex sohbetinin **ilk mesajı** olarak aşağıdaki promptu aynen yapıştır.
 
@@ -12,10 +12,10 @@ Bu dosyanın kendisi değişmez; güncel durum her zaman `AGENTS.md`'de yaşar. 
 ## PROMPT (buradan itibaren kopyala)
 
 ```
-Sen "zanzibarr" adlı açık kaynak projeyi devralan kıdemli bir yazılım mühendisisin. Bundan sonra bu projeyi birlikte geliştireceğiz. Ben projenin sahibiyim, Türkçe konuşuyorum — tüm yanıtlarını Türkçe ver. Kod yorumları, dokümantasyon ve release notları İngilizce, commit mesajları Türkçe conventional commit formatında olacak (örn. "fix(android): ...", "feat(engine): ...").
+Sen "Zanzibarr" adlı açık kaynak projeyi devralan kıdemli bir yazılım mühendisisin. Bundan sonra bu projeyi birlikte geliştireceğiz. Ben projenin sahibiyim, Türkçe konuşuyorum — tüm yanıtlarını Türkçe ver. Kod yorumları, dokümantasyon ve release notları İngilizce, commit mesajları Türkçe conventional commit formatında olacak (örn. "fix(android): ...", "feat(engine): ...").
 
 PROJE ÖZETİ:
-zanzibarr, Usenet NZB içeriklerini indirmeden, seek edilebilir şekilde oynatan cross-platform bir uygulama. Flutter UI + Rust motoru (flutter_rust_bridge köprüsü). Motor NNTP segmentlerini çeker, yEnc çözer, RAR/7z/PAR2 katmanından geçirir ve localhost HTTP range server üzerinden libmpv'ye (media_kit) servis eder. Platformlar: macOS, Windows, Android (telefon + Android TV), Linux, iOS (unsigned). Repo: https://github.com/envermeister/zanzibarr
+Zanzibarr, Usenet NZB içeriklerini indirmeden, seek edilebilir şekilde oynatan cross-platform bir uygulama. Flutter UI + Rust motoru (flutter_rust_bridge köprüsü). Motor NNTP segmentlerini çeker, yEnc çözer, RAR/7z/PAR2 katmanından geçirir ve localhost HTTP range server üzerinden libmpv'ye (media_kit) servis eder. Platformlar: macOS, Windows, Android (telefon + Android TV), Linux, iOS (unsigned). Repo: https://github.com/envermeister/zanzibarr
 
 BAĞLAM DOSYASI (EN ÖNEMLİ KISIM):
 Bu projenin yaşayan hafızası repo kökündeki AGENTS.md dosyasıdır. İçinde mimari, kesin kurallar, test/release süreçleri, güncel durum, bilinen sorunlar, yol haritası, geçmiş kararların gerekçeleri ve onboarding sırası var.
@@ -50,7 +50,7 @@ Hazırsan devralma doğrulamasıyla başla.
 
 ## Son notlar
 
-- **Yerel yol:** proje `~/Downloads/USENET/Zanzibarr` altında (eski yol: `~/Downloads/CodexGPT/UseNews`). Kardeş fork **Usetopia** (`~/Downloads/USENET/Usetopia`, repo `envermeister/usetopia`) Claude/ChatGPT ile ayrı bir uygulama olarak geliştiriliyor — bu dosya yalnız zanzibarr içindir.
+- **Yerel yol:** proje `~/Downloads/USENET/Zanzibarr` altında (eski yol: `~/Downloads/CodexGPT/UseNews`). Kardeş fork **Usetopia** (`~/Downloads/USENET/Usetopia`, repo `envermeister/usetopia`) Claude/ChatGPT ile ayrı bir uygulama olarak geliştiriliyor — bu dosya yalnız Zanzibarr içindir.
 - **Oturum kapanışı:** Hangi araçla çalışırsan çalış, sohbeti bitirmeden önce ajana "AGENTS.md'yi güncelle ve commit'le" de. Prompt bunu emrediyor ama hatırlatmak işe yarar.
 - **ChatGPT web'de bağlam penceresi dolarsa:** yeni sohbet aç, aynı promptu + güncel AGENTS.md'yi yapıştır. AGENTS.md güncel olduğu sürece hiçbir şey kaybolmaz.
 - **Bu dosyayı güncelleme:** promptun kendisi değişirse (örn. yeni kural eklemek istersen) burayı düzenle; proje gerçekleri ise her zaman `AGENTS.md`'de tutulur — çift bakım yapma.

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>zanzibarr — Stream anything from Usenet</title>
-<meta name="description" content="zanzibarr plays NZB content without downloading it — instant start, frame-accurate seek, HDR & Dolby Vision. Free and open source.">
-<meta property="og:title" content="zanzibarr">
+<title>Zanzibarr — Stream anything from Usenet</title>
+<meta name="description" content="Zanzibarr plays NZB content without downloading it — instant start, frame-accurate seek, HDR & Dolby Vision. Free and open source.">
+<meta property="og:title" content="Zanzibarr">
 <meta property="og:description" content="Stream anything from Usenet. Own nothing. Wait for nothing.">
 <meta property="og:image" content="screenshots/home_dark.png">
 <meta property="og:type" content="website">
@@ -235,8 +235,8 @@
 <div id="app" v-cloak>
   <nav>
     <div class="wrap nav-inner">
-      <img class="logo" src="assets/zanzibarr-logo.png" alt="zanzibarr logo">
-      <span class="brand">zanzibarr</span>
+      <img class="logo" src="assets/zanzibarr-logo.png" alt="Zanzibarr logo">
+      <span class="brand">Zanzibarr</span>
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#screenshots">Screenshots</a>
@@ -249,8 +249,8 @@
   </nav>
 
   <header class="wrap">
-    <img class="hero-logo" src="assets/zanzibarr-logo.png" alt="zanzibarr">
-    <h1>zanzibarr</h1>
+    <img class="hero-logo" src="assets/zanzibarr-logo.png" alt="Zanzibarr">
+    <h1>Zanzibarr</h1>
     <p class="tagline">Stream anything from Usenet. <strong>Own nothing. Wait for nothing.</strong><br>
       Point it at any <code>.nzb</code> and the video starts in seconds — no download queue, no waiting, no disk space sacrificed.</p>
     <div class="hero-ctas">
@@ -264,12 +264,12 @@
       </a>
     </div>
     <div class="hero-demo">
-      <img src="screenshots/demo.gif" alt="zanzibarr in action — pick an NZB, press play, seek anywhere">
+      <img src="screenshots/demo.gif" alt="Zanzibarr in action — pick an NZB, press play, seek anywhere">
     </div>
   </header>
 
   <section id="features" class="wrap">
-    <p class="kicker">Why zanzibarr</p>
+    <p class="kicker">Why Zanzibarr</p>
     <h2>An engine, not a downloader</h2>
     <p class="section-sub">Everything heavy — parsing, yEnc, archive surgery, NNTP — is Rust. Everything you touch is Flutter. The engine only ever fetches the slices you actually watch.</p>
     <div class="grid grid-3">
@@ -313,7 +313,7 @@
   <section id="download" class="wrap">
     <p class="kicker">Download</p>
     <h2>Free for every screen</h2>
-    <p class="section-sub">{{ version }} — open source, no accounts, no telemetry. You bring your own Usenet provider and NZB sources; zanzibarr is the player, not the library.</p>
+    <p class="section-sub">{{ version }} — open source, no accounts, no telemetry. You bring your own Usenet provider and NZB sources; Zanzibarr is the player, not the library.</p>
     <div class="grid grid-2">
       <div class="card dl-card" v-for="d in downloads" :key="d.name">
         <div class="platform"><span v-html="d.icon"></span>{{ d.name }}</div>
@@ -348,7 +348,7 @@
   <section id="support" class="wrap">
     <div class="support">
       <h2>Support the project</h2>
-      <p>zanzibarr is free and open source, built in spare time. If it saved you a download queue, you can buy the next coffee that funds the engine — one-off or monthly, both keep the commits coming.</p>
+      <p>Zanzibarr is free and open source, built in spare time. If it saved you a download queue, you can buy the next coffee that funds the engine — one-off or monthly, both keep the commits coming.</p>
       <div class="btn-row">
         <a class="btn btn-coffee" href="https://buymeacoffee.com/envermeister" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M18.5 3H6a2 2 0 0 0-2 2v6a5 5 0 0 0 5 5h4a5 5 0 0 0 5-5v-1h.5a2.5 2.5 0 0 0 0-5H18.5V3zm0 4v3h.5a.5.5 0 0 0 0-1H18.5zM4 18h14v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2z"/></svg>
@@ -372,13 +372,13 @@
 
   <footer>
     <div class="wrap foot-grid">
-      <p class="note">zanzibarr is a neutral playback engine. You are responsible for the content you access and for complying with the laws of your jurisdiction and the terms of your Usenet provider.</p>
+      <p class="note">Zanzibarr is a neutral playback engine. You are responsible for the content you access and for complying with the laws of your jurisdiction and the terms of your Usenet provider.</p>
       <p>
         <a :href="repoUrl" target="_blank" rel="noopener">GitHub</a> ·
         <a :href="repoUrl + '/releases'" target="_blank" rel="noopener">Releases</a> ·
         <a href="https://buymeacoffee.com/envermeister" target="_blank" rel="noopener">Buy Me a Coffee</a> ·
         <a href="https://ko-fi.com/envermeister" target="_blank" rel="noopener">Ko-fi</a>
-        <br><br>© 2026 zanzibarr. Free and open source.
+        <br><br>© 2026 Zanzibarr. Free and open source.
       </p>
     </div>
   </footer>

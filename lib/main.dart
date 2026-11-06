@@ -584,7 +584,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const _AppLogoMark(),
                       const SizedBox(height: 20),
                       Text(
-                        'zanzibarr',
+                        'Zanzibarr',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(

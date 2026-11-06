@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""zanzibarr logosundan tüm platform ikonlarını üretir (tek seferlik)."""
+"""Zanzibarr logosundan tüm platform ikonlarını üretir (tek seferlik)."""
 
 from PIL import Image
 
