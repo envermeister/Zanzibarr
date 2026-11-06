@@ -1,6 +1,6 @@
 # AGENTS.md — zanzibarr
 
-**Living context document for every AI coding agent (Kimi, Claude, ChatGPT/Codex, …) that works on this repository.**
+**Living context document for every AI coding agent (Kimi, OpenCode, Claude, ChatGPT/Codex, …) that works on this repository.**
 
 > ## Agent protocol — read first
 > 1. Read this file **fully** before touching any code, then follow the onboarding order in §10.
@@ -14,7 +14,7 @@
 - **zanzibarr** streams video from Usenet NZBs **without downloading**: seekable playback straight from NNTP segments, through a local range-aware HTTP server, into libmpv.
 - Repo: <https://github.com/envermeister/zanzibarr> (public) · Site: <https://zanzibarr.app> (GitHub Pages, served from `docs/`, download links point at `releases/latest`)
 - Local working copy: `~/Downloads/USENET/Zanzibarr` (renamed 2026-09-08; formerly `~/Downloads/CodexGPT/UseNews`). Sibling fork: **Usetopia** at `~/Downloads/USENET/Usetopia` (repo `envermeister/usetopia`) — a separate app developed with Claude/ChatGPT; never touch it during zanzibarr work.
-- Current release: **v1.6** (`pubspec.yaml` → `version: 1.6.0+7`). `main` == release — see §6.
+- Current release: **v1.9** (`pubspec.yaml` → `version: 1.9.0+10`). `main` == release — see §6.
 - Platforms: **macOS** (arm64, signed), **Windows**, **Android** (phone + Android TV leanback), **Linux** (new), **iOS** (unsigned package; no TestFlight yet). Web is intentionally out of scope (no raw NNTP in browsers).
 - The owner communicates in **Turkish** → always reply in Turkish. Repo artifacts (code comments, docs, release notes) in **English**. Commit messages: **Turkish conventional commits** (`feat(engine): …`, `fix(android): …`).
 - Donations: buymeacoffee.com/envermeister + ko-fi.com/envermeister (referenced in README/site only).
@@ -91,7 +91,9 @@ Release pipeline (v1.4+):
 
 Debug hooks (developer-only, env vars): `ZANZIBARR_DEBUG_NZB=/path/to.nzb` (open NZB directly at startup), `ZANZIBARR_DEBUG_PROBE=1` (dump video params + audio tracks to stdout).
 
-## 6. Current state (updated 2026-10-13)
+## 6. Current state (updated 2026-11-06)
+
+**OpenCode takeover (2026-11-06):** development now continues in OpenCode after Kimi Code CLI / Kimi Desktop. The canonical documents, release notes and streaming/player spine were reviewed; `main` was clean and aligned with `origin/main`, and `pubspec.yaml` (`1.9.0+10`) matches the shipped `v1.9`. No application code, tests, known-issue status or roadmap priorities changed in this handover session.
 
 **v1.9 shipped** (tag `v1.9`, release notes `docs/releases/v1.9.md`): the picker follow-up fixes (below). `release.yml` built Windows/Android/Linux/iOS; macOS built locally (lipo shim recreated — /tmp doesn't survive reboots — plus the committed build-override), smoke-tested (launch/quit) and uploaded with `--clobber`. 8 assets on the release. Site synced ("What's new" v1.9 + version var). README test badge → 255 Rust. Reddit post at `dist/reddit-v1.9-update.md` — owner posts manually. Issue #5 already carries the fix summary + test-APK comment; left open for the reporter's final word.
 
@@ -186,6 +188,7 @@ Done since v1.0: Newznab indexer search (v1.1-era), RAR4/RAR5 STORE, split 7z ST
 - **2026-10-08 — v1.8 shipped.** Owner green-lit release with the picker + diagnostics. Cut: `docs/releases/v1.8.md`, `pubspec.yaml` → `1.8.0+9`, tag `v1.8` → `release.yml`; macOS built locally (lipo shim + the new build-override — both required) with smoke test, uploaded manually. Site synced: "What's new" v1.8, version var, roadmap picker item done. Reddit update post (covers v1.7 D-pad + v1.8 picker, v1.6-post style) at `dist/reddit-v1.8-update.md` — owner posts manually. Issue #5 got the release comment; left open pending reporter confirmation. **Still open: Gran.Torino RAR4 root cause** (§7 — trace screenshot pending).
 - **2026-10-10 — Picker follow-up fixes (issue #5 reporter feedback).** The reporter's season pack (`[Chimera] Sekai Seifuku…`, subjects as `"<dir>/<file>"`) exposed three flaws: single-line picker titles hid the episode number behind the directory prefix, size-descending sort scrambled equal-sized episodes, and a ghost "codec could not open" SnackBar appeared during healthy playback (mpv hw→sw decoder fallback error event). Fixes: `nzb::basename()` + `NzbFile::display_name()` strip dir prefixes for display only — selection keys (`direct:<full name>`), repair-overlay matching and auto-pick keep the full name, so v1.8 continue-watching entries stay valid; `playable_entries` sorts by `natural_name_cmp` (digit runs numerically, `E9 < E10`, episodes before NCED/NCOP, exact-byte tie-break); picker + continue-watching titles wrap to 2 lines; `StreamInfo.filename` is the basename (player title/history clean up; server path is cosmetic, verified in `server.rs`). Ghost-band suppression: post-startup mpv errors wait 3 s and are dropped if `_player.state.position` advanced (`_pendingErrorTimer` in `player_screen.dart`); startup-path errors unchanged. 5 new Rust tests (basename edge cases, chimera-style dir prefix, natural ordering, same-basename key disambiguation); existing size-order picker tests re-based to natural order. Gate: **255 Rust** + **166 Flutter**, clippy/analyze clean. No FRB/l10n changes. Commit `b234983`; CI Android APK built for the reporter; issue #5 answered and left open.
 - **2026-10-13 — v1.9 shipped.** Owner green-lit release without waiting for the reporter's confirmation (same as v1.7). Cut: `docs/releases/v1.9.md`, `pubspec.yaml` → `1.9.0+10`, tag `v1.9` → `release.yml` built Windows/Android/Linux/iOS. macOS built locally: the lipo shim had vanished with a /tmp cleanup — recreated from the §7 recipe and re-verified three-way (multi-arch pass / missing-arch fail / passthrough); build succeeded with the committed build-override, smoke-tested (launch → alive → clean quit), uploaded with `--clobber`. 8 assets on the release. Site synced ("What's new" v1.9 + version var), README test badge → 255 Rust. Reddit post at `dist/reddit-v1.9-update.md` — owner posts manually.
+- **2026-11-06 — OpenCode takeover.** The owner connected the Kimi account to OpenCode and moved continued development here after Kimi Code CLI / Kimi Desktop. Completed the §10 onboarding review (canonical docs, all project release notes, engine/server/locator and Flutter player wiring, dependencies, release workflow); verified a clean `main` aligned with `origin/main` and the `1.9.0+10` / `v1.9` baseline. No code changes and no test rerun; known issues and roadmap remain as recorded above. Corrected the stale §1 current-release line from v1.6 to v1.9.
 
 ### Key technical decisions (the *why* — don't relitigate without cause)
 
