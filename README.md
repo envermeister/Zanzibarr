@@ -153,6 +153,10 @@ The **Linux** build links against the system libmpv — install the runtime firs
 - [x] Android TV D-pad navigation overhaul (settings & search fully remote-driven)
 - [x] Multi-file NZB picker — choose the episode inside season packs (direct videos, RAR/7z & obfuscated sets)
 
+## License
+
+Zanzibarr is available under the [MIT License](LICENSE). Vendored third-party components retain their respective licenses.
+
 ## Support the project
 
 Zanzibarr is free and open source, built in spare time. If it saved you a download queue, you can buy the next coffee that funds the engine on [Buy Me a Coffee](https://buymeacoffee.com/envermeister) or [Ko-fi](https://ko-fi.com/envermeister). One-off or monthly — both keep the commits coming.
