@@ -29,13 +29,20 @@ PlayableEntryDto _entry({
 Future<void> _openPicker(
   WidgetTester tester,
   List<PlayableEntryDto> entries,
-  void Function(String?) onDone,
-) async {
+  void Function(String?) onDone, {
+  Set<String> watchedKeys = const <String>{},
+}) async {
   await tester.pumpWithL10n(
     Builder(
       builder: (context) {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
-          onDone(await showPlayableEntryPicker(context, entries));
+          onDone(
+            await showPlayableEntryPicker(
+              context,
+              entries,
+              watchedKeys: watchedKeys,
+            ),
+          );
         });
         return const Scaffold(body: SizedBox());
       },
@@ -112,6 +119,56 @@ void main() {
       await tester.pumpAndSettle();
       expect(completed, isTrue);
       expect(result, isNull);
+    });
+
+    testWidgets('izlenmiş adaylar işaretlenir', (tester) async {
+      await _openPicker(tester, [
+        _entry(key: 'direct:show.e01.mkv', name: 'show.e01.mkv'),
+        _entry(key: 'direct:show.e02.mkv', name: 'show.e02.mkv'),
+      ], (_) {}, watchedKeys: {'direct:show.e01.mkv'});
+
+      // Yalnız izlenen bölüm onay işareti taşır.
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      final watchedTile = tester.widget<ListTile>(
+        find.ancestor(
+          of: find.text('show.e01.mkv'),
+          matching: find.byType(ListTile),
+        ),
+      );
+      expect(watchedTile.trailing, isA<Tooltip>());
+      expect(find.byTooltip('İzlendi'), findsOneWidget);
+    });
+
+    testWidgets('otomatik odak ilk izlenmedik bölüme gider', (tester) async {
+      String? result;
+      await _openPicker(tester, [
+        _entry(key: 'direct:show.e01.mkv', name: 'show.e01.mkv'),
+        _entry(key: 'direct:show.e02.mkv', name: 'show.e02.mkv'),
+        _entry(key: 'direct:show.e03.mkv', name: 'show.e03.mkv'),
+      ], (value) => result = value, watchedKeys: {'direct:show.e01.mkv'});
+
+      // Kayıttan devam: kumandayla hiç gezinmeden DPAD_CENTER, ilk
+      // İZLENMEDİK bölümü (E02) seçmeli — ilk bölüm izlenmiştir.
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+      expect(result, 'direct:show.e02.mkv');
+    });
+
+    testWidgets('hepsi izlenmişse odak baştan başlar (yeniden izleme)', (
+      tester,
+    ) async {
+      String? result;
+      await _openPicker(tester, [
+        _entry(key: 'direct:show.e01.mkv', name: 'show.e01.mkv'),
+        _entry(key: 'direct:show.e02.mkv', name: 'show.e02.mkv'),
+      ], (value) => result = value, watchedKeys: {
+        'direct:show.e01.mkv',
+        'direct:show.e02.mkv',
+      });
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+      expect(result, 'direct:show.e01.mkv');
     });
   });
 }

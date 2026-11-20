@@ -28,6 +28,7 @@ import 'smart_canvas.dart';
 import 'smart_canvas_overlay.dart';
 import 'subtitle_controls_overlay.dart';
 import 'subtitle_fonts.dart';
+import 'up_next_overlay.dart';
 
 /// Seçilen NZB'yi Rust localhost server üzerinden media_kit ile oynatır.
 ///
@@ -42,6 +43,7 @@ class PlayerScreen extends StatefulWidget {
     this.preferenceStore,
     this.pictureInPictureWindow,
     this.historyStore,
+    this.watchedStore,
     this.castService,
     this.initialEntryKey,
     this.startupTimeout = const Duration(seconds: 45),
@@ -67,6 +69,10 @@ class PlayerScreen extends StatefulWidget {
   /// İzleme geçmişi (kaldığı yerden devam); testlerde sahte depo enjekte
   /// edilir.
   final PlaybackHistoryStore? historyStore;
+
+  /// İzlenmiş bölüm kayıtları (oynatma kuyruğu "sıradaki izlenmedik bölüm"
+  /// tespiti); testlerde sahte depo enjekte edilir.
+  final WatchedEpisodeStore? watchedStore;
 
   /// Cast (TV'ye yansıtma) servisi; testlerde sahte enjekte edilir.
   final CastController? castService;
@@ -100,6 +106,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   late final PlaybackStartupGuard _startupGuard;
   late final MediaPreferencesStore _preferenceStore;
   late final PlaybackHistoryStore _historyStore;
+  late final WatchedEpisodeStore _watchedStore;
   late final CastController _castService;
 
   // Cast (TV'ye yansıtma) oturumu. Cast aktifken yerel player duraklatılır;
@@ -247,6 +254,16 @@ class _PlayerScreenState extends State<PlayerScreen>
   // null kalır. Geçmiş kayıtları (nzbPath, entryKey) çiftiyle tutulur ki
   // sezon paketinin bölümleri birbirinin konumunu ezmesin (issue #5).
   String? _resolvedEntryKey;
+
+  // Oynatma kuyruğu: doğal sıralı aday listesinde seçilen bölümden SONRA
+  // gelen adaylar. Tümü ağsız kurulur (NZB zaten ayrıştırılmış); sonraki
+  // bölümün akışı yalnızca geçiş anında başlar ve motor yalnız izlenen
+  // kareleri çeker — tembel akış kuralı bozulmaz (§4.3).
+  List<PlayableEntryDto> _queue = const [];
+  // Bölüm sonunda gösterilen "sıradaki bölüm" kartı; null = kapalı.
+  PlayableEntryDto? _upNext;
+  StreamSubscription<bool>? _completedSubscription;
+  bool _engineConfigured = false;
   // Android çok-sesli sessiz açılış düzeltmesi tek seferlik uygulanır.
   bool _audioReasserted = false;
   // Video sığdırma kipi: false=contain (oran korunur), true=cover (doldur).
@@ -289,6 +306,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         widget.pictureInPictureWindow ?? NativePictureInPictureWindow();
     _preferenceStore = widget.preferenceStore ?? MediaPreferencesStore();
     _historyStore = widget.historyStore ?? PlaybackHistoryStore();
+    _watchedStore = widget.watchedStore ?? WatchedEpisodeStore();
     _castService = widget.castService ?? AppCastService();
     _startupGuard = PlaybackStartupGuard(widget.startupTimeout);
     _positionSubscription = _player.stream.position.listen((position) {
@@ -308,6 +326,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // hataları daha sonra bu stream'lerden gelir; bu nedenle open'dan önce
     // abone olmak zorundayız.
     _playerErrorSubscription = _player.stream.error.listen(_onPlayerError);
+    _completedSubscription = _player.stream.completed.listen(_onCompleted);
     _bufferingSubscription = _player.stream.buffering.listen(_onBuffering);
     _bufferingPercentageSubscription = _player.stream.bufferingPercentage
         .listen(_onBufferingPercentage);
@@ -340,7 +359,12 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   Future<void> _start() async {
     try {
-      await _configureNativeEngine();
+      // Motor profilleri ekranda ilk açılışta kurulur; kuyruktan sonraki
+      // bölüm geçişlerinde tekrar kurulmaz (durum ve filtre ayarları korunur).
+      if (!_engineConfigured) {
+        await _configureNativeEngine();
+        _engineConfigured = true;
+      }
       await _loadPreferences();
 
       final store = widget.store ?? ProviderSettingsStore();
@@ -355,108 +379,240 @@ class _PlayerScreenState extends State<PlayerScreen>
         return;
       }
 
-      // Çok parçalı (sezon paketi gibi) NZB'lerde oynatılacak dosyayı
-      // kullanıcı seçer (issue #5). Geçmişten belirli bir bölümle
-      // gelindiyse (initialEntryKey) diyalog atlanır.
+      // Oynatılacak aday ve kuyruk. Doğal sıralı aday listesi her açılışta
+      // ağsız okunur (yalnız NZB ayrıştırma); seçimden sonraki adaylar oynatma
+      // kuyruğunu kurar. Sonraki bölümün ağ akışı GEÇİŞ ANINDA başlar ve motor
+      // yalnız oynatılan kareleri çeker — tembel akış kuralı bozulmaz.
+      var entries = const <PlayableEntryDto>[];
+      try {
+        entries = await listPlayableEntries(nzbPath: widget.nzbPath);
+      } catch (_) {
+        // Listeleme başarısızsa kuyruk boş kalır; beginStream'in kendi
+        // ayrıntılı hatası mevcut hata yüzeyine gelir.
+      }
+      if (!mounted) return;
+
       var entryKey = widget.initialEntryKey;
-      if (entryKey == null) {
+      if (entryKey == null && entries.length > 1) {
+        // Çok parçalı (sezon paketi gibi) NZB'lerde oynatılacak dosyayı
+        // kullanıcı seçer (issue #5). İzlenmiş bölümler işaretlenir ve odak
+        // ilk izlenmedik bölüme gider — "kaldığın yerden devam" tek tuş.
+        Set<String> watchedKeys = const <String>{};
         try {
-          final entries = await listPlayableEntries(nzbPath: widget.nzbPath);
-          if (!mounted) return;
-          if (entries.length > 1) {
-            entryKey = await showPlayableEntryPicker(context, entries);
-            if (entryKey == null) {
-              // Kullanıcı vazgeçti: oynatıcıyı hiç başlatmadan geri dön.
-              if (mounted && Navigator.of(context).canPop()) {
-                Navigator.of(context).pop();
-              }
-              return;
-            }
-          }
+          watchedKeys = await _watchedStore.watchedKeys(widget.nzbPath);
         } catch (_) {
-          // Listeleme başarısızsa (bozuk NZB) anahtarsız yola düşülür:
-          // beginStream'in kendi ayrıntılı hatası mevcut hata yüzeyine gelir.
+          // Depo okunamazsa işaretsiz liste gösterilir.
         }
+        if (!mounted) return;
+        entryKey = await showPlayableEntryPicker(
+          context,
+          entries,
+          watchedKeys: watchedKeys,
+        );
+        if (entryKey == null) {
+          // Kullanıcı vazgeçti: oynatıcıyı hiç başlatmadan geri dön.
+          if (mounted && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+          return;
+        }
+        if (!mounted) return;
       }
-      _resolvedEntryKey = entryKey;
-
+      setState(() {
+        _queue = queueAfterEntry(entries, entryKey);
+        _upNext = null;
+      });
       if (!mounted) return;
-      setState(() {
-        _startupActive = true;
-        _status = AppLocalizations.of(context).statusConnecting;
-      });
-      _startupGuard.arm(
-        _onStartupTimeout,
-        after: widget.streamPreparationTimeout,
-      );
-
-      final sessionId = await beginStream(
-        config: ProviderConfigDto(
-          host: settings.host,
-          port: settings.port,
-          username: settings.username,
-          password: settings.password,
-          maxConnections: settings.maxConnections,
-        ),
-        nzbPath: widget.nzbPath,
-        entryKey: entryKey,
-      );
-      _pendingSessionId = sessionId;
-
-      if (!mounted || _startupFailed) {
-        await _releaseNativeStream();
-        return;
-      }
-
-      final info = await awaitStream(sessionId: sessionId);
-      _pendingSessionId = null;
-      _nativeStream = info;
-
-      if (!mounted || _startupFailed) {
-        await _releaseNativeStream();
-        return;
-      }
-      await _playback.resetForNewMedia();
-      await _applyPreferencesToPlayer();
-      if (!mounted || _startupFailed) return;
-      final l10n = AppLocalizations.of(context);
-      setState(() {
-        _info = info;
-        _rate = _playback.rate;
-        _zoom = _playback.zoom;
-        _startupActive = true;
-        _status = info.compressed
-            ? l10n.statusPreparingCompressed
-            : l10n.statusReadingVideoStructure(info.filename);
-      });
-      // Sıkıştırılmış arşivlerde mpv'nin kuyruk sondası tam çözüm turu
-      // gerektirebilir; standart 45 sn'lik demux koruması onları erken
-      // öldürür. Bu içeriklerde guard uzatılır.
-      _startupGuard.arm(
-        _onStartupTimeout,
-        after: info.compressed ? _compressedOpenTimeout : null,
-      );
-      await _player.open(Media(info.url));
-
-      if (!mounted || _startupFailed) return;
-      // Stream olayı open() future'undan hemen önce gelmişse state'i de
-      // kontrol ederek readiness olayını kaçırmayız.
-      _onVideoWidth(_player.state.width);
-      _onTracks(_player.state.tracks);
+      await _openEntry(settings, entryKey);
     } catch (error) {
-      await _releaseNativeStream();
-      if (_startupFailed) return;
-      _startupGuard.cancel();
-      _startupActive = false;
-      _startupFailed = true;
-      if (!mounted) return;
-      setState(
-        () => _error = describeStreamStartupError(
-          error,
-          AppLocalizations.of(context),
-        ),
-      );
+      await _handleStreamStartupError(error);
     }
+  }
+
+  /// Akış kurulumu hatasını kullanıcıya gösterir; kuyruk geçişlerinde de
+  /// aynı yüzey kullanılır (sonraki bölüm açılamazsa hata kartı görünür).
+  Future<void> _handleStreamStartupError(Object error) async {
+    await _releaseNativeStream();
+    if (_startupFailed) return;
+    _startupGuard.cancel();
+    _startupActive = false;
+    _startupFailed = true;
+    if (!mounted) return;
+    setState(
+      () => _error = describeStreamStartupError(
+        error,
+        AppLocalizations.of(context),
+      ),
+    );
+  }
+
+  /// Seçilen adayı oynatmaya başlar: akış oturumu kurar, yeni medyayı açar.
+  ///
+  /// İlk açılışta ve kuyruk geçişlerinde ortak yoldur. Bölüm-başı durumlar
+  /// (konum, izler, önbellek, devam kaydı) burada sıfırlanır; sahne-bazlı
+  /// tercihler (zoom, altyazı, renk) korunur ve yeniden uygulanır.
+  Future<void> _openEntry(ProviderSettings settings, String? entryKey) async {
+    _resolvedEntryKey = entryKey;
+    _pendingErrorTimer?.cancel();
+    _pendingErrorTimer = null;
+
+    if (!mounted) return;
+    setState(() {
+      _startupActive = true;
+      _startupFailed = false;
+      _error = null;
+      _playbackReady = false;
+      _position = Duration.zero;
+      _duration = Duration.zero;
+      _playing = false;
+      _buffering = false;
+      _bufferingPercentage = 0;
+      _tracks = const Tracks();
+      _track = const Track();
+      _audioReasserted = false;
+      _thumbnailCache.clear();
+      _previewImage = null;
+      _previewPosition = null;
+      // Yeni bölümün kendi kısmi izleme kaydı varsa ondan devam edilir.
+      _historyResumeDone = false;
+      _status = AppLocalizations.of(context).statusConnecting;
+    });
+    _startupGuard.arm(
+      _onStartupTimeout,
+      after: widget.streamPreparationTimeout,
+    );
+
+    final sessionId = await beginStream(
+      config: ProviderConfigDto(
+        host: settings.host,
+        port: settings.port,
+        username: settings.username,
+        password: settings.password,
+        maxConnections: settings.maxConnections,
+      ),
+      nzbPath: widget.nzbPath,
+      entryKey: entryKey,
+    );
+    _pendingSessionId = sessionId;
+
+    if (!mounted || _startupFailed) {
+      await _releaseNativeStream();
+      return;
+    }
+
+    final info = await awaitStream(sessionId: sessionId);
+    _pendingSessionId = null;
+    _nativeStream = info;
+
+    if (!mounted || _startupFailed) {
+      await _releaseNativeStream();
+      return;
+    }
+    await _playback.resetForNewMedia();
+    await _applyPreferencesToPlayer();
+    if (!mounted || _startupFailed) return;
+    final l10n = AppLocalizations.of(context);
+    setState(() {
+      _info = info;
+      _rate = _playback.rate;
+      _zoom = _playback.zoom;
+      _startupActive = true;
+      _status = info.compressed
+          ? l10n.statusPreparingCompressed
+          : l10n.statusReadingVideoStructure(info.filename);
+    });
+    // Sıkıştırılmış arşivlerde mpv'nin kuyruk sondası tam çözüm turu
+    // gerektirebilir; standart 45 sn'lik demux koruması onları erken
+    // öldürür. Bu içeriklerde guard uzatılır.
+    _startupGuard.arm(
+      _onStartupTimeout,
+      after: info.compressed ? _compressedOpenTimeout : null,
+    );
+    await _player.open(Media(info.url));
+
+    if (!mounted || _startupFailed) return;
+    // Bölüm geçişinde odak kumanda köküne döner ki D-pad yeni medyada da
+    // çalışsın (overlay düğmesi kapanınca odak boşta kalmasın).
+    _refocusKeyboardRoot();
+    // Stream olayı open() future'undan hemen önce gelmişse state'i de
+    // kontrol ederek readiness olayını kaçırmayız.
+    _onVideoWidth(_player.state.width);
+    _onTracks(_player.state.tracks);
+  }
+
+  /// Bölüm sonu (EOF) olayı: bölüm izlendi olarak işaretlenir ve kuyrukta
+  /// sonraki bölüm varsa "sıradaki bölüm" geri sayım kartı açılır.
+  ///
+  /// Geri sarma/yeniden oynatma completed=false üretir; bu durumda kart
+  /// kapanır, bölüm yeniden sona ulaşırsa teklif yenilenir.
+  void _onCompleted(bool completed) {
+    if (!mounted || _disposing || _startupFailed) return;
+    if (!completed) {
+      if (_upNext != null) _dismissUpNext();
+      return;
+    }
+    if (!_playbackReady) return;
+    // Geçmişe son konum yazılır: tamamlanan bölümlerin kartı düşer.
+    unawaited(_saveHistoryPosition());
+    final entryKey = _resolvedEntryKey;
+    if (entryKey != null) {
+      final title = _info?.filename ?? '';
+      unawaited(() async {
+        try {
+          await _watchedStore.add(
+            WatchedEpisodeEntry(
+              nzbPath: widget.nzbPath,
+              entryKey: entryKey,
+              title: title,
+              watchedAtMs: DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+        } catch (_) {
+          // Kayıt yazılamazsa oynatma akışı kesilmez.
+        }
+      }());
+    }
+    if (_queue.isEmpty) return;
+    _controlsTimer?.cancel();
+    setState(() => _upNext = _queue.first);
+  }
+
+  /// "Sıradaki bölüm" kartı: şimdi oynat (veya geri sayım bitti).
+  Future<void> _playUpNextNow() async {
+    final next = _upNext;
+    if (next == null) return;
+    if (!mounted) return;
+    setState(() {
+      _upNext = null;
+      _queue = _queue.length > 1
+          ? List<PlayableEntryDto>.unmodifiable(_queue.sublist(1))
+          : const <PlayableEntryDto>[];
+    });
+    final store = widget.store ?? ProviderSettingsStore();
+    try {
+      final settings = await store.load();
+      if (!mounted || !settings.isComplete) return;
+      await _openEntry(settings, next.key);
+    } catch (error) {
+      await _handleStreamStartupError(error);
+    }
+  }
+
+  /// "Bölümü bitir" / Geri: otomatik geçiş iptal edilir; kuyruk korunur.
+  void _dismissUpNext() {
+    if (!mounted) return;
+    setState(() => _upNext = null);
+    _refocusKeyboardRoot();
+  }
+
+  /// "Kuyruğu temizle": bu oturumda otomatik geçiş tamamen kapanır.
+  void _clearUpNextQueue() {
+    if (!mounted) return;
+    setState(() {
+      _upNext = null;
+      _queue = const <PlayableEntryDto>[];
+    });
+    _refocusKeyboardRoot();
   }
 
   void _onVideoWidth(int? width) {
@@ -1222,6 +1378,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _durationSubscription,
       _playingSubscription,
       _playerErrorSubscription,
+      _completedSubscription,
       _bufferingSubscription,
       _bufferingPercentageSubscription,
       _widthSubscription,
@@ -3173,65 +3330,81 @@ class _PlayerScreenState extends State<PlayerScreen>
               onPointerCancel: _onPointerUp,
               onPointerPanZoomStart: _onPointerPanZoomStart,
               onPointerPanZoomUpdate: _onPointerPanZoomUpdate,
-              child: GyuniPlayerChrome(
-                visible: _controlsVisible,
-                ready: _playbackReady,
-                playing: _playing,
-                buffering: _buffering,
-                volume: _volume,
-                periodicInfoVisible: _periodicInfoVisible,
-                filename:
-                    _info?.filename ??
-                    AppLocalizations.of(context).videoPreparing,
-                status: _status,
-                engineBadge: _engineStatus,
-                position: _position,
-                duration: _duration,
-                rate: _rate,
-                tracks: _tracks,
-                selectedTrack: _track,
-                previewImage: _previewImage,
-                previewPosition: _previewPosition,
-                editorOverlay: _buildEditorOverlay(),
-                seekFlashDirection: _seekFlashDirection,
-                isPictureInPicture: _isPictureInPicture,
-                canvasActive: _canvasEditing,
-                subtitleControlsActive: _subtitleControlsVisible,
-                pictureInPictureSupported: _pictureInPictureWindow.isSupported,
-                castAvailable: _castAvailable,
-                casting: _casting,
-                onCast: _onCastButton,
-                playButtonFocusNode: _playButtonFocusNode,
-                onActivity: _revealControls,
-                onVideoTap: _touchPrimary
-                    ? _toggleControlsVisibility
-                    : () => unawaited(_togglePlay()),
-                onTogglePlay: () => unawaited(_togglePlay()),
-                onClose: () => unawaited(_closePlayer()),
-                onToggleFullscreen: () => unawaited(_toggleFullscreen()),
-                onTogglePictureInPicture: () =>
-                    unawaited(_togglePictureInPicture()),
-                onToggleCanvas: _toggleCanvasEditor,
-                onToggleSubtitleControls: _toggleSubtitleControls,
-                videoFill: _videoFill,
-                onToggleVideoFit: _toggleVideoFit,
-                onDoubleTapSeek: _flashSeek,
-                onVolumeChanged: _onVolumeChanged,
-                onToggleMute: _toggleMute,
-                onFrameBackward: () => unawaited(_stepBackward()),
-                onFrameForward: () => unawaited(_stepForward()),
-                onScrubStart: _onScrubStart,
-                onScrubUpdate: _onScrubUpdate,
-                onScrubEnd: _onScrubEnd,
-                onRateSelected: (value) => unawaited(_setRate(value)),
-                onSubtitleSelected: (track) =>
-                    unawaited(_selectSubtitle(track)),
-                onAudioSelected: (track) => unawaited(_selectAudio(track)),
-                onLoadExternalAudio: () => unawaited(_loadExternalAudio()),
-                onLoadExternalSubtitle: () =>
-                    unawaited(_loadExternalSubtitle()),
-                onShowAdvancedSettings: (position) =>
-                    unawaited(_showAdvancedSettings(position)),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  GyuniPlayerChrome(
+                    visible: _controlsVisible,
+                    ready: _playbackReady,
+                    playing: _playing,
+                    buffering: _buffering,
+                    volume: _volume,
+                    periodicInfoVisible: _periodicInfoVisible,
+                    filename:
+                        _info?.filename ??
+                        AppLocalizations.of(context).videoPreparing,
+                    status: _status,
+                    engineBadge: _engineStatus,
+                    position: _position,
+                    duration: _duration,
+                    rate: _rate,
+                    tracks: _tracks,
+                    selectedTrack: _track,
+                    previewImage: _previewImage,
+                    previewPosition: _previewPosition,
+                    editorOverlay: _buildEditorOverlay(),
+                    seekFlashDirection: _seekFlashDirection,
+                    isPictureInPicture: _isPictureInPicture,
+                    canvasActive: _canvasEditing,
+                    subtitleControlsActive: _subtitleControlsVisible,
+                    pictureInPictureSupported: _pictureInPictureWindow
+                        .isSupported,
+                    castAvailable: _castAvailable,
+                    casting: _casting,
+                    onCast: _onCastButton,
+                    playButtonFocusNode: _playButtonFocusNode,
+                    onActivity: _revealControls,
+                    onVideoTap: _touchPrimary
+                        ? _toggleControlsVisibility
+                        : () => unawaited(_togglePlay()),
+                    onTogglePlay: () => unawaited(_togglePlay()),
+                    onClose: () => unawaited(_closePlayer()),
+                    onToggleFullscreen: () => unawaited(_toggleFullscreen()),
+                    onTogglePictureInPicture: () =>
+                        unawaited(_togglePictureInPicture()),
+                    onToggleCanvas: _toggleCanvasEditor,
+                    onToggleSubtitleControls: _toggleSubtitleControls,
+                    videoFill: _videoFill,
+                    onToggleVideoFit: _toggleVideoFit,
+                    onDoubleTapSeek: _flashSeek,
+                    onVolumeChanged: _onVolumeChanged,
+                    onToggleMute: _toggleMute,
+                    onFrameBackward: () => unawaited(_stepBackward()),
+                    onFrameForward: () => unawaited(_stepForward()),
+                    onScrubStart: _onScrubStart,
+                    onScrubUpdate: _onScrubUpdate,
+                    onScrubEnd: _onScrubEnd,
+                    onRateSelected: (value) => unawaited(_setRate(value)),
+                    onSubtitleSelected: (track) =>
+                        unawaited(_selectSubtitle(track)),
+                    onAudioSelected: (track) => unawaited(_selectAudio(track)),
+                    onLoadExternalAudio: () => unawaited(_loadExternalAudio()),
+                    onLoadExternalSubtitle: () =>
+                        unawaited(_loadExternalSubtitle()),
+                    onShowAdvancedSettings: (position) =>
+                        unawaited(_showAdvancedSettings(position)),
+                  ),
+                  // "Sıradaki bölüm" kartı kontrollerden bağımsızdır: bölüm
+                  // sonunda kalan son kare üzerinde kendi odak zincirini
+                  // kurar (D-pad gezintisi + Geri ile iptal).
+                  if (_upNext case final upNext?)
+                    UpNextOverlay(
+                      entryName: upNext.name,
+                      onPlayNow: () => unawaited(_playUpNextNow()),
+                      onCancel: _dismissUpNext,
+                      onClearQueue: _clearUpNextQueue,
+                    ),
+                ],
               ),
             ),
           ),

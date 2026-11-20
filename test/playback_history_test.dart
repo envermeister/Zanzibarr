@@ -177,4 +177,116 @@ void main() {
     expect(entries, hasLength(1));
     expect(entries.single.entryKey, 'rar:e02');
   });
+
+  group('WatchedEpisodeStore', () {
+    WatchedEpisodeEntry watched(
+      String path, {
+      required String key,
+      String title = 'bolum.mkv',
+      int watchedAt = 1000,
+    }) => WatchedEpisodeEntry(
+      nzbPath: path,
+      entryKey: key,
+      title: title,
+      watchedAtMs: watchedAt,
+    );
+
+    test('kayıt eklenip okunabiliyor (round-trip)', () async {
+      final storage = _MemoryPreferenceStorage();
+      final store = WatchedEpisodeStore(storage: storage);
+
+      await store.add(watched('/media/paket.nzb', key: 'rar:e01'));
+
+      final entries = await store.load();
+      expect(entries, hasLength(1));
+      expect(entries.single.nzbPath, '/media/paket.nzb');
+      expect(entries.single.entryKey, 'rar:e01');
+      expect(entries.single.title, 'bolum.mkv');
+      expect(
+        await store.watchedKeys('/media/paket.nzb'),
+        {'rar:e01'},
+      );
+    });
+
+    test('watchedKeys yalnız hedef NZB’nin anahtarlarını döndürür', () async {
+      final storage = _MemoryPreferenceStorage();
+      final store = WatchedEpisodeStore(storage: storage);
+
+      await store.add(watched('/media/a.nzb', key: 'rar:e01'));
+      await store.add(watched('/media/a.nzb', key: 'rar:e02'));
+      await store.add(watched('/media/b.nzb', key: 'rar:e01'));
+
+      expect(
+        await store.watchedKeys('/media/a.nzb'),
+        {'rar:e01', 'rar:e02'},
+      );
+      expect(
+        await store.watchedKeys('/media/b.nzb'),
+        {'rar:e01'},
+      );
+      expect(await store.watchedKeys('/media/yok.nzb'), isEmpty);
+    });
+
+    test('aynı bölüm yeniden izlenirse kayıt güncellenir, çoğalmaz', () async {
+      final storage = _MemoryPreferenceStorage();
+      final store = WatchedEpisodeStore(storage: storage);
+
+      await store.add(
+        watched('/media/paket.nzb', key: 'rar:e01', watchedAt: 1),
+      );
+      await store.add(
+        watched('/media/paket.nzb', key: 'rar:e02', watchedAt: 2),
+      );
+      await store.add(
+        watched('/media/paket.nzb', key: 'rar:e01', watchedAt: 3),
+      );
+
+      final entries = await store.load();
+      expect(entries, hasLength(2));
+      // En güncel izlenme başta.
+      expect(entries.first.entryKey, 'rar:e01');
+      expect(entries.first.watchedAtMs, 3);
+    });
+
+    test('liste en güncel 400 kayıtla sınırlı', () async {
+      final storage = _MemoryPreferenceStorage();
+      final store = WatchedEpisodeStore(storage: storage);
+
+      for (var i = 0; i < 405; i++) {
+        await store.add(
+          watched('/media/paket-$i.nzb', key: 'rar:e01', watchedAt: i),
+        );
+      }
+
+      final entries = await store.load();
+      expect(entries, hasLength(400));
+      expect(entries.first.nzbPath, '/media/paket-404.nzb');
+      expect(entries.last.nzbPath, '/media/paket-5.nzb');
+    });
+
+    test('bozuk JSON boş listeye düşer', () async {
+      final storage = _MemoryPreferenceStorage()
+        ..values[WatchedEpisodeStore.storageKey] = '{bozuk';
+      final store = WatchedEpisodeStore(storage: storage);
+
+      expect(await store.load(), isEmpty);
+      expect(await store.watchedKeys('/media/a.nzb'), isEmpty);
+    });
+
+    test('remove yalnız hedef bölümü; entryKey’siz tüm NZB’yi siler', () async {
+      final storage = _MemoryPreferenceStorage();
+      final store = WatchedEpisodeStore(storage: storage);
+
+      await store.add(watched('/media/a.nzb', key: 'rar:e01', watchedAt: 1));
+      await store.add(watched('/media/a.nzb', key: 'rar:e02', watchedAt: 2));
+      await store.add(watched('/media/b.nzb', key: 'rar:e01', watchedAt: 3));
+
+      await store.remove('/media/a.nzb', entryKey: 'rar:e01');
+      expect(await store.watchedKeys('/media/a.nzb'), {'rar:e02'});
+
+      await store.remove('/media/a.nzb');
+      expect(await store.watchedKeys('/media/a.nzb'), isEmpty);
+      expect(await store.watchedKeys('/media/b.nzb'), {'rar:e01'});
+    });
+  });
 }

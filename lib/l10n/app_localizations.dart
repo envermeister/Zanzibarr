@@ -1399,6 +1399,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} parts'**
   String entryParts(int count);
+
+  /// No description provided for @upNextTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Up next'**
+  String get upNextTitle;
+
+  /// No description provided for @upNextStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting in {seconds}s'**
+  String upNextStarting(Object seconds);
+
+  /// No description provided for @upNextPlayNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Play now'**
+  String get upNextPlayNow;
+
+  /// No description provided for @upNextFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish episode'**
+  String get upNextFinish;
+
+  /// No description provided for @upNextClearQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear queue'**
+  String get upNextClearQueue;
+
+  /// No description provided for @entryWatchedTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Watched'**
+  String get entryWatchedTooltip;
 }
 
 class _AppLocalizationsDelegate

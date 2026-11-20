@@ -719,4 +719,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String entryParts(int count) {
     return '$count parts';
   }
+
+  @override
+  String get upNextTitle => 'Up next';
+
+  @override
+  String upNextStarting(Object seconds) {
+    return 'Starting in ${seconds}s';
+  }
+
+  @override
+  String get upNextPlayNow => 'Play now';
+
+  @override
+  String get upNextFinish => 'Finish episode';
+
+  @override
+  String get upNextClearQueue => 'Clear queue';
+
+  @override
+  String get entryWatchedTooltip => 'Watched';
 }

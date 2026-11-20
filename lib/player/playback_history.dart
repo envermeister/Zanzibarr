@@ -98,6 +98,139 @@ class PlaybackHistoryEntry {
   );
 }
 
+/// İzlenmiş bölüm kaydı: bir NZB'deki (ör. sezon paketi) adayın uçtan uca
+/// izlendiğini belgeler. "İzlemeye devam et" kartından farklı olarak tamamlanan
+/// kayıtlar geçmişte tutulmaz; bu depo yalnızca seçicide "izlendi" işareti ve
+/// sıradaki izlenmedik bölümün bulunması içindir.
+class WatchedEpisodeEntry {
+  const WatchedEpisodeEntry({
+    required this.nzbPath,
+    required this.entryKey,
+    required this.title,
+    required this.watchedAtMs,
+  });
+
+  /// Kaydın kimliği: NZB dosya yolu + adayın seçici anahtarı.
+  final String nzbPath;
+  final String entryKey;
+
+  /// Kartlarda/tanıda kullanılan görünen ad (video dosya adı).
+  final String title;
+  final int watchedAtMs;
+
+  Map<String, Object> toJson() => <String, Object>{
+    'nzbPath': nzbPath,
+    'entryKey': entryKey,
+    'title': title,
+    'watchedAtMs': watchedAtMs,
+  };
+
+  static WatchedEpisodeEntry? fromJson(Object? value) {
+    if (value is! Map) return null;
+    final path = value['nzbPath'];
+    final entryKey = value['entryKey'];
+    final title = value['title'];
+    final watchedAt = value['watchedAtMs'];
+    if (path is! String || path.isEmpty) return null;
+    if (entryKey is! String || entryKey.isEmpty) return null;
+    if (title is! String) return null;
+    if (watchedAt is! num) return null;
+    return WatchedEpisodeEntry(
+      nzbPath: path,
+      entryKey: entryKey,
+      title: title,
+      watchedAtMs: watchedAt.toInt(),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is WatchedEpisodeEntry &&
+      nzbPath == other.nzbPath &&
+      entryKey == other.entryKey &&
+      title == other.title &&
+      watchedAtMs == other.watchedAtMs;
+
+  @override
+  int get hashCode => Object.hash(nzbPath, entryKey, title, watchedAtMs);
+}
+
+/// İzlenmiş bölüm kayıtlarını güvenli depoda (şifreli) tutar; en yeni kayıt
+/// başta olacak şekilde sıralıdır ve liste [_maxEntries] ile sınırlanır.
+class WatchedEpisodeStore {
+  WatchedEpisodeStore({PlayerPreferenceStorage? storage})
+    : _storage = storage ?? FlutterSecurePlayerPreferenceStorage();
+
+  final PlayerPreferenceStorage _storage;
+
+  static const storageKey = 'zanzibarr.watched_episodes.v1';
+  static const _maxEntries = 400;
+
+  Future<List<WatchedEpisodeEntry>> load() async {
+    final encoded = await _storage.read(storageKey);
+    if (encoded == null || encoded.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(encoded);
+      if (decoded is! Map) return const [];
+      final list = decoded['entries'];
+      if (list is! List) return const [];
+      return [
+        for (final item in list) ?WatchedEpisodeEntry.fromJson(item),
+      ];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  /// Verilen NZB'ye ait izlenmiş aday anahtarları.
+  Future<Set<String>> watchedKeys(String nzbPath) async {
+    final keys = <String>{};
+    for (final entry in await load()) {
+      if (entry.nzbPath == nzbPath) keys.add(entry.entryKey);
+    }
+    return keys;
+  }
+
+  /// Kaydı ekler veya günceller; liste [_maxEntries] kaydı aşmaz
+  /// (en eski izlenme düşer).
+  Future<void> add(WatchedEpisodeEntry entry) async {
+    final entries = List.of(await load());
+    entries.removeWhere(
+      (existing) =>
+          existing.nzbPath == entry.nzbPath &&
+          existing.entryKey == entry.entryKey,
+    );
+    entries.insert(0, entry);
+    if (entries.length > _maxEntries) {
+      entries.removeRange(_maxEntries, entries.length);
+    }
+    await _storage.write(
+      storageKey,
+      jsonEncode(<String, Object>{
+        'version': 1,
+        'entries': [for (final item in entries) item.toJson()],
+      }),
+    );
+  }
+
+  /// Kaydı siler; [entryKey] verilmezse NZB'nin tüm bölüm kayıtları düşer.
+  Future<void> remove(String nzbPath, {String? entryKey}) async {
+    final entries = List.of(await load());
+    entries.removeWhere(
+      (existing) =>
+          existing.nzbPath == nzbPath &&
+          (entryKey == null || existing.entryKey == entryKey),
+    );
+    await _storage.write(
+      storageKey,
+      jsonEncode(<String, Object>{
+        'version': 1,
+        'entries': [for (final item in entries) item.toJson()],
+      }),
+    );
+  }
+}
+
 /// İzleme geçmişini güvenli depoda (şifreli) tutar; en güncel kayıt başta
 /// olacak şekilde sıralıdır ve liste [_maxEntries] ile sınırlanır.
 class PlaybackHistoryStore {

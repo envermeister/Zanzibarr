@@ -78,7 +78,7 @@ Verification gate (run all four, in order):
 cd rust && cargo test                      # ~250 tests (run to confirm current count)
 cd rust && cargo clippy --all-targets -- -D warnings
 flutter analyze lib test
-flutter test                               # ~169 tests
+flutter test                               # ~187 tests
 ```
 
 Release pipeline (v1.4+):
@@ -101,7 +101,9 @@ Release pipeline (v1.4+):
 
 Debug hooks (developer-only, env vars): `ZANZIBARR_DEBUG_NZB=/path/to.nzb` (open NZB directly at startup), `ZANZIBARR_DEBUG_PROBE=1` (dump video params + audio tracks to stdout).
 
-## 6. Current state (updated 2026-11-17)
+## 6. Current state (updated 2026-11-20)
+
+**Play queue / auto-play next episode (2026-11-20, unreleased main):** roadmap #2 implemented. Multi-entry NZBs now build a natural-ordered play queue from the already-listed entries (`queueAfterEntry` — zero network in queue setup; the next episode's stream starts only at transition and the engine keeps fetching lazily, so rule §4.3 holds). When mpv reports EOF, the episode is recorded in a new `WatchedEpisodeStore` (`playback_history.dart`, secure storage, 400-entry cap) and the finished entry's history card is swept; a 10-second "Up next" countdown card (`lib/player/up_next_overlay.dart`) offers *Play now / Finish episode / Clear queue*, cancellable with TV Back or Esc, and auto-advances on expiry. `_start` was split into selection+queue setup and `_openEntry` (shared by first open and queue transitions, error surface shared via `_handleStreamStartupError`). The episode picker now badges watched entries and autofocuses the first unwatched one — "continue from next unwatched" is one select away; all-watched defaults back to the first entry. New l10n keys (`upNext*`, `entryWatchedTooltip`) in all 14 locales (en+tr translated, rest fallback) + gen-l10n rerun. Flutter-only: no Rust/FRB changes. Gate: **255 Rust + 187 Flutter**, clippy/analyze clean. Not yet verified on a real season pack on-device.
 
 **Arabic subtitle fallback (2026-11-17, unreleased main):** an Android TV user reported Arabic subtitles rendered as squares. All three bundled primary fonts (Noto Sans/Serif/Mono) lacked the Arabic Unicode block. Added OFL-licensed Noto Sans Arabic and Noto Naskh Arabic assets, and `AssetSubtitleFontResolver` now extracts primary + fallback fonts together into `sub-fonts-dir` before playback, allowing libass/fontconfig to fall back per glyph without changing the user's picker preference. Added three Flutter tests: catalog separation, real TTF cmap Arabic glyph checks and resolver extraction of all five fonts. Verified with an isolated fontconfig match and a real mpv/libass render of `مرحبا بالعالم` (correct shaped Arabic, no squares). Full gate: **255 Rust + 169 Flutter**, clippy/analyze clean. No version bump or release yet; user reply should say the fix is ready for the next update, not that it is already released.
 
@@ -165,7 +167,7 @@ Gate after the change: 223 Rust tests, clippy clean, flutter analyze clean, 152 
 | # | Item | Status |
 |---|------|--------|
 | 1 | Multi-file NZB picker — choose episode/file inside a season pack | shipped in v1.8 — awaiting reporter's on-device confirmation (issue #5) |
-| 2 | Play queue / auto-play next episode (natural follow-up to #1) | proposed |
+| 2 | Play queue / auto-play next episode (natural follow-up to #1) | implemented on unreleased main (2026-11-20) — ships with the next release; on-device season-pack test pending |
 | 3 | NZB completion pre-check — sample STAT on segments before playback, health badge in search results | proposed |
 | 4 | Easynews web search API (separate code path) | open |
 | 5 | Cross-indexer dedup | open |
@@ -211,6 +213,7 @@ Done since v1.0: Newznab indexer search (v1.1-era), RAR4/RAR5 STORE, split 7z ST
 - **2026-11-06 — MIT license added.** Added the standard root `LICENSE` with `Copyright (c) 2026 Enver Anil Karakoc` and linked it from a new README License section, noting that vendored third-party components retain their respective licenses. No code, version or release changes; tests not rerun for this documentation-only addition.
 - **2026-11-17 — Issue #6 macOS signing hotfix.** Reproduced the official v1.9 `Mpv.framework` resource-envelope failure and found three independent packaging defects: only the main Mpv Mach-O was ad-hoc signed (no CodeResources), the non-code MoltenVK ICD manifest sat in `Versions/A/Frameworks`, and the app used Apple Development + a device-only profile. Moved the manifest to Resources, updated Rust's Vulkan path and the bundler's final whole-framework signing, added `macos/ExportOptions.developer-id.plist` plus the archive/export release flow, and added `tools/sign_macos_app.py` for profile validation + inside-out Developer ID/hardened-runtime signing. Full gate passed (255 Rust + 166 Flutter, clippy/analyze). The rebuilt v1.9 ZIP passed strict codesign and real launch checks and replaced the release asset; SHA-256 `f518ad91887a3706147bb1aa53319d911e944d0a81cc03386f1b49f7a63397c0`. Notarization remains pending; issue left open for reporter confirmation.
 - **2026-11-17 — Arabic subtitles on Android TV (Reddit report).** The bundled Noto Sans/Serif/Mono fonts had no Arabic glyphs, so libass rendered squares. Bundled Noto Sans Arabic + Noto Naskh Arabic (OFL notices retained) and changed `AssetSubtitleFontResolver` to extract all primary and fallback fonts into `sub-fonts-dir`; Arabic now falls back per glyph without a new picker option or user setting. Added `test/subtitle_fonts_test.dart` (catalog, TTF cmap and extraction tests). Verified fontconfig selection and actual mpv/libass rendering of `مرحبا بالعالم`. Full gate: 255 Rust + 169 Flutter, clippy/analyze clean. Unreleased main; a response can promise inclusion in the next update only.
+- **2026-11-20 — Play queue / auto-play next episode (roadmap #2).** Multi-entry NZBs play as a queue: `_start` splits into selection + queue setup (`queueAfterEntry`, natural-ordered tail after the chosen entry, zero network) and a shared `_openEntry` used by both the first open and queue transitions — engine fetching stays lazy (§4.3): nothing of the next episode is streamed until the transition. mpv's `completed` stream marks the finished episode watched via new `WatchedEpisodeStore` (secure storage, 400 keys, drives picker badges) and pops a 10-second D-pad-navigable "Up next" card (Play now / Finish episode / Clear queue; TV Back/Esc cancels; auto-advance on expiry). The entry picker badges watched entries and autofocuses the first unwatched one. l10n: `upNext*` + `entryWatchedTooltip` in all 14 locales; gen-l10n rerun. 18 new Flutter tests (queue helper, overlay incl. countdown/keys, watched store round-trip/keys/cap, picker badges/autofocus). Gate: **255 Rust + 187 Flutter**, clippy/analyze clean. Unreleased main — on-device season-pack verification and the site/README roadmap flip wait for the release cut.
 
 ### Key technical decisions (the *why* — don't relitigate without cause)
 

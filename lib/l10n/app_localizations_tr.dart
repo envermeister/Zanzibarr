@@ -740,4 +740,24 @@ class AppLocalizationsTr extends AppLocalizations {
   String entryParts(int count) {
     return '$count parça';
   }
+
+  @override
+  String get upNextTitle => 'Sıradaki bölüm';
+
+  @override
+  String upNextStarting(Object seconds) {
+    return '$seconds sn içinde başlıyor';
+  }
+
+  @override
+  String get upNextPlayNow => 'Şimdi oynat';
+
+  @override
+  String get upNextFinish => 'Bölümü bitir';
+
+  @override
+  String get upNextClearQueue => 'Kuyruğu temizle';
+
+  @override
+  String get entryWatchedTooltip => 'İzlendi';
 }

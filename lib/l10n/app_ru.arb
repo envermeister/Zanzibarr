@@ -194,5 +194,11 @@
     "placeholders": {
       "count": { "type": "int" }
     }
-  }
+  },
+  "upNextTitle": "Up next",
+  "upNextStarting": "Starting in {seconds}s",
+  "upNextPlayNow": "Play now",
+  "upNextFinish": "Finish episode",
+  "upNextClearQueue": "Clear queue",
+  "entryWatchedTooltip": "Watched"
 }

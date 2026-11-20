@@ -9,20 +9,37 @@ import '../src/rust/api/streaming.dart';
 /// Seçilen adayın `key` değerini döndürür; Geri/vazgeç `null` döner.
 /// D-pad: ilk öğe otomatik odaklıdır, yukarı/aşağı listede gezer,
 /// DPAD_CENTER seçer; Geri diyalogu kapatır (showDialog varsayılanı).
+///
+/// [watchedKeys] verildiğinde izlenmiş adaylar onay işareti taşır ve otomatik
+/// odak İLK İZLENMEDİK adaya gider; "kaldığın yerden devam" tek tuşla olur.
 Future<String?> showPlayableEntryPicker(
   BuildContext context,
-  List<PlayableEntryDto> entries,
-) {
+  List<PlayableEntryDto> entries, {
+  Set<String> watchedKeys = const <String>{},
+}) {
   return showDialog<String>(
     context: context,
-    builder: (context) => _PlayableEntryPickerDialog(entries: entries),
+    builder: (context) =>
+        _PlayableEntryPickerDialog(entries: entries, watchedKeys: watchedKeys),
   );
 }
 
 class _PlayableEntryPickerDialog extends StatelessWidget {
-  const _PlayableEntryPickerDialog({required this.entries});
+  const _PlayableEntryPickerDialog({
+    required this.entries,
+    this.watchedKeys = const <String>{},
+  });
 
   final List<PlayableEntryDto> entries;
+  final Set<String> watchedKeys;
+
+  /// İlk izlenmedik adayın indeksi; hepsi izlenmişse baştan (yeniden izleme).
+  int _firstUnwatchedIndex() {
+    for (var index = 0; index < entries.length; index++) {
+      if (!watchedKeys.contains(entries[index].key)) return index;
+    }
+    return 0;
+  }
 
   static IconData _iconFor(String kind) => switch (kind) {
     'direct' => Icons.movie_outlined,
@@ -50,6 +67,7 @@ class _PlayableEntryPickerDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final firstUnwatched = _firstUnwatchedIndex();
     return AlertDialog(
       title: Text(l10n.entryPickerTitle),
       content: SizedBox(
@@ -83,9 +101,9 @@ class _PlayableEntryPickerDialog extends StatelessWidget {
                     );
                   }
                   return ListTile(
-                    // D-pad gezintisi ilk videodan başlar (issue #4 dersi:
-                    // otomatik odak yoksa kumandayla diyalog ölü doğar).
-                    autofocus: index == 0,
+                    // D-pad gezintisi ilk izlenmedik bölümden başlar (issue #4
+                    // dersi: otomatik odak yoksa kumandayla diyalog ölü doğar).
+                    autofocus: index == firstUnwatched,
                     leading: Icon(_iconFor(entry.kind), size: 20),
                     title: Text(
                       entry.name,
@@ -99,6 +117,19 @@ class _PlayableEntryPickerDialog extends StatelessWidget {
                       subtitle.toString(),
                       style: const TextStyle(fontSize: 11.5),
                     ),
+                    trailing: watchedKeys.contains(entry.key)
+                        ? Tooltip(
+                            message: l10n.entryWatchedTooltip,
+                            child: Icon(
+                              Icons.check_circle,
+                              size: 18,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.45),
+                            ),
+                          )
+                        : null,
                     onTap: () => Navigator.of(context).pop(entry.key),
                   );
                 },

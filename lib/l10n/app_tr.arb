@@ -227,5 +227,11 @@
     "placeholders": {
       "count": { "type": "int" }
     }
-  }
+  },
+  "upNextTitle": "Sıradaki bölüm",
+  "upNextStarting": "{seconds} sn içinde başlıyor",
+  "upNextPlayNow": "Şimdi oynat",
+  "upNextFinish": "Bölümü bitir",
+  "upNextClearQueue": "Kuyruğu temizle",
+  "entryWatchedTooltip": "İzlendi"
 }
