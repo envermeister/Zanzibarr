@@ -52,7 +52,9 @@ xcrun notarytool submit "$SUBMIT_ZIP" --keychain-profile "$PROFILE" --wait
 rm -f "$SUBMIT_ZIP"
 
 echo "==> stapling"
-xcrun notarytool staple "$APP_PATH" || xcrun stapler staple "$APP_PATH"
+# Xcode 27: notarytool'un 'staple' alt komutu yok; staple her zaman
+# 'xcrun stapler' ile yapilir (onceki denemede auth bosuna hata uretirdi).
+xcrun stapler staple "$APP_PATH"
 xcrun stapler validate "$APP_PATH"
 
 echo "==> Gatekeeper check (should now say Accepted)"
