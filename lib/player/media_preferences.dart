@@ -235,6 +235,7 @@ class MediaPreferences {
     double audioDelaySeconds = 0,
     String? subtitleLanguage,
     Map<String, ExternalSubtitle> externalSubtitles = const {},
+    String? audioLanguage,
   }) => MediaPreferences._(
     crop: crop,
     aspectRatio: _sanitizeAspectRatio(aspectRatio),
@@ -269,6 +270,9 @@ class MediaPreferences {
         ? null
         : _languageCodeOrNull(subtitleLanguage),
     externalSubtitles: _sanitizeExternalSubtitles(externalSubtitles),
+    audioLanguage: audioLanguage == null || audioLanguage.isEmpty
+        ? null
+        : _languageCodeOrNull(audioLanguage),
   );
 
   const MediaPreferences._({
@@ -289,12 +293,13 @@ class MediaPreferences {
     required this.audioDelaySeconds,
     required this.subtitleLanguage,
     required this.externalSubtitles,
+    required this.audioLanguage,
   });
 
-  /// Şema sürümü 2: `subtitleLanguage` + `externalSubtitles` alanları eklendi
-  /// (OpenSubtitles entegrasyonu). Sürüm 1 kayıtları yeni alanların
-  /// varsayılanlarıyla okunur — mevcut tercihler yükseltmede kaybolmaz.
-  static const schemaVersion = 2;
+  /// Şema sürümü 3: `audioLanguage` alanı eklendi (ses kanalı tercih
+  /// kalıcılığı). Sürüm 1 ve 2 kayıtları yeni alanın varsayılanı (null)
+  /// ile okunur — mevcut tercihler yükseltmede kaybolmaz.
+  static const schemaVersion = 3;
   /// `decodeOrDefault` desteklediği en eski şema sürümü.
   static const _oldestSupportedSchemaVersion = 1;
   static const minimumSeekStepSeconds = 1;
@@ -344,6 +349,11 @@ class MediaPreferences {
   /// seçim yapılmadıysa null.
   final String? subtitleLanguage;
 
+  /// Bu içerik için kullanıcının seçtiği ses kanalı dili (ISO kodu). Kuyruğun
+  /// sonraki bölümleri açılırken eşleşen dil etiketli kanal otomatik seçilir;
+  /// seçim yapılmadıysa null (mpv'nin varsayılan seçimine dokunulmaz).
+  final String? audioLanguage;
+
   /// Girdi dosya adına (`StreamInfo.filename`) bağlanmış harici altyazılar
   /// (OpenSubtitles indirmeleri). Bölüm açılırken dosya hâlâ diskteyse
   /// ağa çıkılmadan yeniden yüklenir.
@@ -379,6 +389,31 @@ class MediaPreferences {
     // language null'da mevcut dil tercihi korunur (yalnız altyazı güncelleme).
     subtitleLanguage: language ?? subtitleLanguage,
     externalSubtitles: {...externalSubtitles, entryName: subtitle},
+    audioLanguage: audioLanguage,
+  );
+
+  /// Ses dili tercihi güncellenmiş kopya: kuyruğun sonraki bölümleri
+  /// açılırken (ve aynı içerik yeniden oynatılırken) kanal seçimi bu
+  /// tercihle yapılır. Kalan alanlar aynen taşınır.
+  MediaPreferences copyWithAudioLanguage(String? language) => MediaPreferences(
+    crop: crop,
+    aspectRatio: aspectRatio,
+    alignment: alignment,
+    pan: pan,
+    seekStepSeconds: seekStepSeconds,
+    periodicInfoInterval: periodicInfoInterval,
+    videoPreset: videoPreset,
+    audioPreset: audioPreset,
+    upscalePreset: upscalePreset,
+    subtitleScale: subtitleScale,
+    subtitlePosition: subtitlePosition,
+    subtitleDelaySeconds: subtitleDelaySeconds,
+    subtitleColor: subtitleColor,
+    subtitleFont: subtitleFont,
+    audioDelaySeconds: audioDelaySeconds,
+    subtitleLanguage: subtitleLanguage,
+    externalSubtitles: externalSubtitles,
+    audioLanguage: language,
   );
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -402,6 +437,7 @@ class MediaPreferences {
     'externalSubtitles': externalSubtitles.map(
       (name, subtitle) => MapEntry(name, subtitle.toJson()),
     ),
+    'audioLanguage': audioLanguage,
   };
 
   String encode() => jsonEncode(toJson());
@@ -419,7 +455,11 @@ class MediaPreferences {
         return defaults();
       }
       final version = value['schemaVersion'];
-      if (version != schemaVersion && version != _oldestSupportedSchemaVersion) {
+      // Şema 1..3 arası kayıtlar tolere edilir; yeni şemalar (bizden yeni
+      // bir sürüm çıkarsa) güvenli biçimde varsayılana düşer.
+      if (version is! int ||
+          version < _oldestSupportedSchemaVersion ||
+          version > schemaVersion) {
         return defaults();
       }
 
@@ -472,6 +512,11 @@ class MediaPreferences {
         subtitleLanguage:
             subtitleLanguage is String ? subtitleLanguage : null,
         externalSubtitles: externalSubtitles,
+        // Depodaki değeri okurken de aynı normalizasyon uygulanır:
+        // boş/geçersiz kodlar sessizce tercih yokmuş gibi okunur.
+        audioLanguage: value['audioLanguage'] is String
+            ? _languageCodeOrNull(value['audioLanguage'] as String)
+            : null,
       );
     } on FormatException {
       return defaults();
@@ -538,6 +583,7 @@ class MediaPreferences {
       subtitleFont == other.subtitleFont &&
       audioDelaySeconds == other.audioDelaySeconds &&
       subtitleLanguage == other.subtitleLanguage &&
+      audioLanguage == other.audioLanguage &&
       // Map == kimlik karşılaştırır; içerik karşılaştırması gerekir.
       mapEquals(externalSubtitles, other.externalSubtitles);
 
@@ -559,6 +605,7 @@ class MediaPreferences {
     subtitleFont,
     audioDelaySeconds,
     subtitleLanguage,
+    audioLanguage,
     externalSubtitles,
   );
 }

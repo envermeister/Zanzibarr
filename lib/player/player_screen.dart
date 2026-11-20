@@ -298,6 +298,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _engineConfigured = false;
   // Android çok-sesli sessiz açılış düzeltmesi tek seferlik uygulanır.
   bool _audioReasserted = false;
+
+  /// Bu bölüm açılışında kalıcı ses dili tercihi uygulanmaya çalışıldı mı?
+  /// Her açılışta sıfırlanır (bölüm/bölüm yeniden uygulanır).
+  bool _audioPreferenceApplied = false;
   // Video sığdırma kipi: false=contain (oran korunur), true=cover (doldur).
   bool _videoFill = false;
 
@@ -502,6 +506,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _tracks = const Tracks();
       _track = const Track();
       _audioReasserted = false;
+      _audioPreferenceApplied = false;
       _thumbnailCache.clear();
       _previewImage = null;
       _previewPosition = null;
@@ -857,6 +862,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       _markPlaybackReady();
       unawaited(_applyDolbyVisionReshapingIfNeeded());
       _reassertAudioTrackOnAndroid(tracks);
+      _applyPreferredAudioLanguage(tracks);
     }
   }
 
@@ -1536,6 +1542,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           _audioDelay.inMicroseconds / Duration.microsecondsPerSecond,
       subtitleLanguage: _preferences.subtitleLanguage,
       externalSubtitles: _preferences.externalSubtitles,
+      audioLanguage: _preferences.audioLanguage,
     );
     _preferences = preferences;
     final write = _preferenceWriteTail.then((_) async {
@@ -1821,13 +1828,67 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  Future<void> _selectAudio(AudioTrack track) async {
+  Future<void> _selectAudio(AudioTrack track, {bool remember = true}) async {
     try {
       await _player.setAudioTrack(track);
       if (mounted) setState(() => _track = _track.copyWith(audio: track));
+      // Elle yapılan seçim içerik geneli ses dili tercihi olarak saklanır;
+      // otomatik (tercih uygulama) seçim döngüyü tetiklemesin diye kaydetmez.
+      if (remember) _rememberAudioChoice(track);
     } catch (error) {
       _showControlError(error);
     }
+  }
+
+  /// Kullanıcının kanal seçimini içerik geneli ses dili tercihine yazar:
+  /// - dil etiketli kanal: etiket tercihe indirgenir ("en-US" → "en"),
+  /// - 'auto'/'no' seçimi: tercih temizlenir (artık "tercihim yok" demek),
+  /// - dil etiketi olmayan kanal: mevcut tercih korunur (eşlenemez).
+  /// Kuyruğun sonraki bölümleri açılırken eşleşen kanal otomatik seçilir.
+  void _rememberAudioChoice(AudioTrack track) {
+    final auto = track.id == 'auto' || track.id == 'no';
+    if (auto) {
+      if (_preferences.audioLanguage == null) return;
+      if (!mounted) return;
+      setState(() {
+        _preferences = _preferences.copyWithAudioLanguage(null);
+      });
+      _schedulePreferencePersist();
+      return;
+    }
+    final code = _audioLanguageCode(track.language);
+    if (code == null || code == _preferences.audioLanguage) return;
+    if (!mounted) return;
+    setState(() {
+      _preferences = _preferences.copyWithAudioLanguage(code);
+    });
+    _schedulePreferencePersist();
+  }
+
+  /// mpv kanal dil etiketini tercih koduna indirger: "en-US" → "en",
+  /// "ger" → "ger". İndirgenemeyen etiketler (tam adlar vb.) null döner;
+  /// altyazı tercihiyle aynı 2–3 harf ISO kalıbı kullanılır.
+  static String? _audioLanguageCode(String? language) {
+    if (language == null) return null;
+    final primary = language.trim().toLowerCase().split('-').first;
+    return RegExp(r'^[a-z]{2,3}$').hasMatch(primary) ? primary : null;
+  }
+
+  /// Bölüm açılışında kalıcı ses dili tercihini uygular: dil eşleşen bir
+  /// somut gömülü kanal varsa ve henüz 'auto' seçimindeysek seçilir. Kullanıcı
+  /// elle bir kanal seçtiyse (ya da tercihe uyan kanal yoksa) dokunulmaz.
+  /// Açılış başına bir kez koşar.
+  void _applyPreferredAudioLanguage(Tracks tracks) {
+    if (_audioPreferenceApplied || _disposing) return;
+    final language = _preferences.audioLanguage;
+    // Tercih yoksa ya da uygulandıysa bu açılışta bir daha bakılmaz.
+    _audioPreferenceApplied = true;
+    if (language == null) return;
+    final current = _track.audio;
+    if (current.id != 'auto' && current.id != 'no') return;
+    final match = pickAudioTrackByLanguage(tracks.audio, language);
+    if (match == null) return;
+    unawaited(_selectAudio(match, remember: false));
   }
 
   /// İçeriğin gömülü altyazılarına ek olarak kullanıcının diskinden altyazı
@@ -2188,6 +2249,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             _subtitleDelay.inMicroseconds / Duration.microsecondsPerSecond,
         audioDelaySeconds:
             _audioDelay.inMicroseconds / Duration.microsecondsPerSecond,
+        subtitleColor: _subtitleColor,
+        subtitleFont: _subtitleFont,
+        subtitleLanguage: _preferences.subtitleLanguage,
+        externalSubtitles: _preferences.externalSubtitles,
+        audioLanguage: _preferences.audioLanguage,
       );
       if (mounted) setState(() => _canvasEditing = false);
       await _persistPreferences();
@@ -2246,6 +2312,11 @@ class _PlayerScreenState extends State<PlayerScreen>
             _subtitleDelay.inMicroseconds / Duration.microsecondsPerSecond,
         audioDelaySeconds:
             _audioDelay.inMicroseconds / Duration.microsecondsPerSecond,
+        subtitleColor: _subtitleColor,
+        subtitleFont: _subtitleFont,
+        subtitleLanguage: _preferences.subtitleLanguage,
+        externalSubtitles: _preferences.externalSubtitles,
+        audioLanguage: _preferences.audioLanguage,
       );
       if (mounted) setState(() => _zoom = _playback.zoom);
       await _persistPreferences();
@@ -2385,6 +2456,11 @@ class _PlayerScreenState extends State<PlayerScreen>
           _subtitleDelay.inMicroseconds / Duration.microsecondsPerSecond,
       audioDelaySeconds:
           _audioDelay.inMicroseconds / Duration.microsecondsPerSecond,
+      subtitleColor: _subtitleColor,
+      subtitleFont: _subtitleFont,
+      subtitleLanguage: _preferences.subtitleLanguage,
+      externalSubtitles: _preferences.externalSubtitles,
+      audioLanguage: _preferences.audioLanguage,
     );
     _configurePeriodicInfoTimer();
     await _persistPreferences();
@@ -3753,6 +3829,30 @@ UpscalingPreset _upscalingPresetFromName(String value) => switch (value) {
   'lowPower' || 'low_power' => UpscalingPreset.lowPower,
   _ => UpscalingPreset.balanced,
 };
+
+/// Dil tercihine uyan ilk somut gömülü ses kanalını seçer (test edilebilir
+/// saf işlev). Eşleşme kuralı: etiket tercihe birebir eşit ya da alt kodla
+/// başlar ("en-US" etiketi "en" tercihini karşılar); birebir eşleşme her
+/// zaman alt kod eşleşmesinden önce gelir. 'auto'/'no' ve harici dosya
+/// kanalları değerlendirilmez; uygun kanal yoksa null döner.
+AudioTrack? pickAudioTrackByLanguage(
+  List<AudioTrack> tracks,
+  String language,
+) {
+  AudioTrack? prefixMatch;
+  for (final track in tracks) {
+    if (track.id == 'auto' || track.id == 'no' || track.uri) continue;
+    final label = (track.language ?? '').trim().toLowerCase();
+    if (label.isEmpty) continue;
+    if (label == language) return track;
+    if (prefixMatch == null &&
+        (label.startsWith('$language-') ||
+            language.startsWith('$label-'))) {
+      prefixMatch = track;
+    }
+  }
+  return prefixMatch;
+}
 
 String _upscalingPresetStorageName(UpscalingPreset value) => switch (value) {
   UpscalingPreset.lowPower => 'low_power',
