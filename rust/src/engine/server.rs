@@ -21,6 +21,8 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinSet;
 
+use super::hdr10plus::ScanSink;
+
 /// Bir byte aralığını çözüp yazan kaynak. Somut hali NZB+NNTP'dir
 /// ([`super::nntp_source::NntpByteSource`]); testlerde bellek içi tampon.
 pub trait RangeSource: Send + Sync + 'static {
@@ -177,9 +179,14 @@ async fn handle_connection<S: RangeSource>(
             stream.write_all(header.as_bytes()).await?;
             stream.flush().await?;
             if !is_head && total > 0 {
-                source.write_range(0..total, &mut stream).await?;
+                // Gövde taramalı yazma ucundan geçer: HDR10+ SEI'si sunucuya
+                // giden baytlardan yakalanır (mpv bu sinyali vermez).
+                let mut sink = ScanSink::new(stream, 0);
+                source.write_range(0..total, &mut sink).await?;
+                sink.flush().await?;
+            } else {
+                stream.flush().await?;
             }
-            stream.flush().await?;
             Ok(())
         }
         RangeOutcome::Satisfiable(range) => {
@@ -198,9 +205,12 @@ async fn handle_connection<S: RangeSource>(
             stream.write_all(header.as_bytes()).await?;
             stream.flush().await?;
             if !is_head {
-                source.write_range(range, &mut stream).await?;
+                let mut sink = ScanSink::new(stream, range.start);
+                source.write_range(range, &mut sink).await?;
+                sink.flush().await?;
+            } else {
+                stream.flush().await?;
             }
-            stream.flush().await?;
             Ok(())
         }
     }
@@ -770,5 +780,35 @@ mod tests {
         assert!(head.starts_with("HTTP/1.1 206 Partial Content"), "{head}");
         assert!(head.contains("Content-Range: bytes 100-199/10000"));
         assert_eq!(body, data[100..200]);
+    }
+
+    /// HDR10+ (ST 2094-40) SEI'si barındıran akışın ilk penceresi servis
+    /// edilirken taranır: tespit arka planda atanır (mpv bu sinyali
+    /// property olarak vermez — tarama yazma ucundadır). Global bayrak
+    /// hdr10plus birim testleriyle paylaşımlı olduğundan kilit tüm test
+    /// boyunca tutulur (kilit yalnız test yapılandırmasında vardır).
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)] // cfg(test)-özel statik; paralel birim testlerle çakışmayı önler
+    async fn hdr10plus_sei_akistan_algilanir() {
+        let _guard = crate::engine::hdr10plus::TEST_LOCK.lock().unwrap();
+        crate::engine::hdr10plus::reset();
+        let mut data = vec![0u8; 8192];
+        let sei: Vec<u8> = [
+            0x00, 0x00, 0x00, 0x01, 0x4E, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0x36, 0x03, 0x00, 0x01, 0x02, 0x80,
+        ]
+        .to_vec();
+        data[1024..1024 + sei.len()].copy_from_slice(&sei);
+
+        let port = start_test_server(data).await;
+        // AralıkContaining-pattern isteği: tarama bu isteğin gövdesinden geçer.
+        let (head, _) = request(
+            port,
+            "GET /f.mkv HTTP/1.1\r\nHost: x\r\nRange: bytes=0-8191\r\n\r\n",
+        )
+        .await;
+        assert!(head.contains("206 Partial Content"));
+        assert!(crate::engine::hdr10plus::detected());
+        crate::engine::hdr10plus::reset();
     }
 }

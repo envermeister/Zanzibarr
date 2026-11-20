@@ -6,6 +6,7 @@
 pub mod archive;
 pub mod easynews;
 pub mod health;
+pub mod hdr10plus;
 pub mod http;
 pub mod locator;
 pub mod newznab;

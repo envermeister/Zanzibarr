@@ -873,6 +873,9 @@ async fn run_stream_session(
         return;
     }
 
+    // Yeni akış oturumu: HDR10+ tarama bayrağı sıfırdan başlar
+    // (srv yazma ucundaki tarama bu oturumun bayrağını atar).
+    crate::engine::hdr10plus::reset();
     let source = Arc::new(source);
     match lan_listener {
         Some(lan) => {

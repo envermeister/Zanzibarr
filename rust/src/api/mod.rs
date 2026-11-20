@@ -5,3 +5,4 @@ pub mod simple;
 pub mod streaming;
 pub mod subtitles;
 pub mod easynews;
+pub mod hdr10;

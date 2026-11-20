@@ -16,6 +16,7 @@ import '../cast/cast_service.dart';
 import '../l10n/app_localizations.dart';
 import '../settings/opensubtitles_settings.dart';
 import '../settings/provider_settings.dart';
+import '../src/rust/api/hdr10.dart' show hdr10PlusDetected;
 import '../src/rust/api/repair.dart';
 import '../src/rust/api/streaming.dart';
 import '../src/rust/api/subtitles.dart'
@@ -225,6 +226,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   Timer? _controlsTimer;
   Timer? _seekFlashTimer;
   Timer? _periodicInfoTimer;
+
+  /// HDR10+ (ST 2094-40) esik-leme yoklamasi: mpv bu sinyali vermediginden
+  /// motor sunucudan akan baytlar arasindan yakalar; oynatim sirasinda bu
+  /// yoklamayla durumu ogrenir ve motor durum satirina rozet ekler.
+  Timer? _hdr10PollTimer;
+  int _hdr10PollTicks = 0;
+  bool _hdr10plus = false;
   Timer? _periodicInfoHideTimer;
   Timer? _previewDebounce;
   Timer? _previewDismissTimer;
@@ -563,6 +571,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _onVideoWidth(_player.state.width);
     _onTracks(_player.state.tracks);
     unawaited(_autoLoadExternalSubtitle(info));
+    _startHdr10PlusPolling();
   }
 
   // ---- OpenSubtitles external subtitles -----------------------------------
@@ -1585,6 +1594,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _controlsTimer?.cancel();
     _seekFlashTimer?.cancel();
     _pendingErrorTimer?.cancel();
+    _hdr10PollTimer?.cancel();
     _periodicInfoTimer?.cancel();
     _periodicInfoHideTimer?.cancel();
     _previewDebounce?.cancel();
@@ -2285,6 +2295,52 @@ class _PlayerScreenState extends State<PlayerScreen>
       _controlsTimer?.cancel();
       setState(() => _controlsVisible = false);
       _refocusKeyboardRoot();
+    }
+  }
+
+  /// Bolum acilirken HDR10+ yoklamasini (yeniden) baslatir: bayrak motor
+  /// tarafinda oturum kurulumunda sifirlanmistir; ilk dakama dusmezse
+  /// sessizce vazgecer.
+  void _startHdr10PlusPolling() {
+    _hdr10PollTimer?.cancel();
+    _hdr10PollTicks = 0;
+    if (_hdr10plus) {
+      setState(() => _hdr10plus = false);
+    }
+    _hdr10PollTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      _hdr10PollTicks++;
+      // Dinamik meta veriler ilk GOP'larda baslar; ~1 dakika sonrasi
+      // vazgecilir (pencere disina cikan akista yanit gelmez).
+      if (_hdr10PollTicks > 12) {
+        timer.cancel();
+        return;
+      }
+      unawaited(_checkHdr10Plus(timer));
+    });
+  }
+
+  /// Tek yoklama adimi: motor bayragi atildysa rozeti motor durum
+  /// satirina ekler. FRB cagrisi async oldugundan timer geri cagirisindan
+  /// ayri birkinde yurur.
+  Future<void> _checkHdr10Plus(Timer timer) async {
+    bool detected;
+    try {
+      detected = await hdr10PlusDetected();
+    } catch (_) {
+      timer.cancel();
+      return;
+    }
+    if (detected) {
+      timer.cancel();
+      if (!mounted) return;
+      setState(() {
+        _hdr10plus = true;
+        if (!_engineStatus.contains('HDR10+')) {
+          _engineStatus = _engineStatus.isEmpty
+              ? 'HDR10+'
+              : '$_engineStatus · HDR10+';
+        }
+      });
     }
   }
 

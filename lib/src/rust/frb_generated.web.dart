@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/easynews.dart';
+import 'api/hdr10.dart';
 import 'api/health.dart';
 import 'api/repair.dart';
 import 'api/search.dart';
