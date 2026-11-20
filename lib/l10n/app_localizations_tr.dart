@@ -760,4 +760,33 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get entryWatchedTooltip => 'İzlendi';
+
+  @override
+  String get searchHealthGood => 'İyi';
+
+  @override
+  String get searchHealthRepairable => 'Onarılabilir';
+
+  @override
+  String get searchHealthRisky => 'Riskli';
+
+  @override
+  String get searchHealthMissing => 'Eksik';
+
+  @override
+  String searchHealthSampled(int missing, int sampled) {
+    return '$sampled örneklem article\'dan $missing tanesi eksik';
+  }
+
+  @override
+  String searchHealthPar2Blocks(int count) {
+    return '$count PAR2 onarım bloğu mevcut';
+  }
+
+  @override
+  String get searchHealthNoPar2 => 'Bu yayında PAR2 onarım verisi yok';
+
+  @override
+  String get searchHealthMissingVolumes =>
+      'NZB listesinde bazı arşiv ciltleri eksik';
 }

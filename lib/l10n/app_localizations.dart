@@ -1435,6 +1435,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Watched'**
   String get entryWatchedTooltip;
+
+  /// No description provided for @searchHealthGood.
+  ///
+  /// In en, this message translates to:
+  /// **'Good'**
+  String get searchHealthGood;
+
+  /// No description provided for @searchHealthRepairable.
+  ///
+  /// In en, this message translates to:
+  /// **'Repairable'**
+  String get searchHealthRepairable;
+
+  /// No description provided for @searchHealthRisky.
+  ///
+  /// In en, this message translates to:
+  /// **'Risky'**
+  String get searchHealthRisky;
+
+  /// No description provided for @searchHealthMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Incomplete'**
+  String get searchHealthMissing;
+
+  /// No description provided for @searchHealthSampled.
+  ///
+  /// In en, this message translates to:
+  /// **'{missing} of {sampled} sampled articles missing'**
+  String searchHealthSampled(int missing, int sampled);
+
+  /// No description provided for @searchHealthPar2Blocks.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} PAR2 recovery blocks available'**
+  String searchHealthPar2Blocks(int count);
+
+  /// No description provided for @searchHealthNoPar2.
+  ///
+  /// In en, this message translates to:
+  /// **'No PAR2 repair data in this post'**
+  String get searchHealthNoPar2;
+
+  /// No description provided for @searchHealthMissingVolumes.
+  ///
+  /// In en, this message translates to:
+  /// **'Some archive volumes are missing from the NZB'**
+  String get searchHealthMissingVolumes;
 }
 
 class _AppLocalizationsDelegate

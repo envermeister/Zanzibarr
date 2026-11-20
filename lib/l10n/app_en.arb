@@ -361,5 +361,24 @@
   "upNextPlayNow": "Play now",
   "upNextFinish": "Finish episode",
   "upNextClearQueue": "Clear queue",
-  "entryWatchedTooltip": "Watched"
+  "entryWatchedTooltip": "Watched",
+  "searchHealthGood": "Good",
+  "searchHealthRepairable": "Repairable",
+  "searchHealthRisky": "Risky",
+  "searchHealthMissing": "Incomplete",
+  "searchHealthSampled": "{missing} of {sampled} sampled articles missing",
+"@searchHealthSampled": {
+    "placeholders": {
+      "missing": { "type": "int" },
+      "sampled": { "type": "int" }
+    }
+  },
+  "searchHealthPar2Blocks": "{count} PAR2 recovery blocks available",
+"@searchHealthPar2Blocks": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "searchHealthNoPar2": "No PAR2 repair data in this post",
+  "searchHealthMissingVolumes": "Some archive volumes are missing from the NZB"
 }

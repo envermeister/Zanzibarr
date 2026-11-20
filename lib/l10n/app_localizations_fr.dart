@@ -768,4 +768,33 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get entryWatchedTooltip => 'Watched';
+
+  @override
+  String get searchHealthGood => 'Good';
+
+  @override
+  String get searchHealthRepairable => 'Repairable';
+
+  @override
+  String get searchHealthRisky => 'Risky';
+
+  @override
+  String get searchHealthMissing => 'Incomplete';
+
+  @override
+  String searchHealthSampled(int missing, int sampled) {
+    return '$missing of $sampled sampled articles missing';
+  }
+
+  @override
+  String searchHealthPar2Blocks(int count) {
+    return '$count PAR2 recovery blocks available';
+  }
+
+  @override
+  String get searchHealthNoPar2 => 'No PAR2 repair data in this post';
+
+  @override
+  String get searchHealthMissingVolumes =>
+      'Some archive volumes are missing from the NZB';
 }

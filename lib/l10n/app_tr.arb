@@ -233,5 +233,24 @@
   "upNextPlayNow": "Şimdi oynat",
   "upNextFinish": "Bölümü bitir",
   "upNextClearQueue": "Kuyruğu temizle",
-  "entryWatchedTooltip": "İzlendi"
+  "entryWatchedTooltip": "İzlendi",
+  "searchHealthGood": "İyi",
+  "searchHealthRepairable": "Onarılabilir",
+  "searchHealthRisky": "Riskli",
+  "searchHealthMissing": "Eksik",
+  "searchHealthSampled": "{sampled} örneklem article'dan {missing} tanesi eksik",
+"@searchHealthSampled": {
+    "placeholders": {
+      "missing": { "type": "int" },
+      "sampled": { "type": "int" }
+    }
+  },
+  "searchHealthPar2Blocks": "{count} PAR2 onarım bloğu mevcut",
+"@searchHealthPar2Blocks": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "searchHealthNoPar2": "Bu yayında PAR2 onarım verisi yok",
+  "searchHealthMissingVolumes": "NZB listesinde bazı arşiv ciltleri eksik"
 }
