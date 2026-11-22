@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 
 import '../l10n/app_localizations.dart';
+import 'player_format.dart';
+
+export 'player_format.dart' show formatPlayerDuration, formatPlayerRate;
 
 const _accent = Color(0xFFFF453A);
 
@@ -115,6 +118,7 @@ class GyuniPlayerChrome extends StatelessWidget {
   final ValueChanged<AudioTrack> onAudioSelected;
   final ValueChanged<double> onVolumeChanged;
   final VoidCallback onToggleMute;
+
   /// Alt çubuktaki "Gelişmiş ayarlar" düğmesinin callback'i. Düğme kendi
   /// ekran konumunu verir; menü o konumdan yukarı açılır. Dokunmatik
   /// ekranlarda ve TV kumandasında sağ tık karşılığı olmadığından menünün
@@ -522,7 +526,9 @@ class _TopToolbar extends StatelessWidget {
                       icon: videoFill
                           ? Icons.fit_screen_rounded
                           : Icons.fit_screen_outlined,
-                      tooltip: videoFill ? l10n.videoFitContain : l10n.videoFitCover,
+                      tooltip: videoFill
+                          ? l10n.videoFitContain
+                          : l10n.videoFitCover,
                       selected: videoFill,
                       onPressed: ready ? onToggleVideoFit : null,
                     ),
@@ -814,11 +820,8 @@ class _BottomControls extends StatelessWidget {
                           icon: Icons.subtitles_rounded,
                           tracks: tracks.subtitle,
                           selectedId: selectedTrack.subtitle.id,
-                          label: (track) => trackLabel(
-                            track,
-                            auto: l10n.auto,
-                            off: l10n.off,
-                          ),
+                          label: (track) =>
+                              trackLabel(track, auto: l10n.auto, off: l10n.off),
                           onSelected: onSubtitleSelected,
                           onLoadExternal: onLoadExternalSubtitle,
                         ),
@@ -1202,11 +1205,7 @@ String _trackId(Object? track) => switch (track) {
   _ => '',
 };
 
-String trackLabel(
-  Object track, {
-  required String auto,
-  required String off,
-}) {
+String trackLabel(Object track, {required String auto, required String off}) {
   final (id, title, language, codec) = switch (track) {
     AudioTrack value => (value.id, value.title, value.language, value.codec),
     SubtitleTrack value => (value.id, value.title, value.language, value.codec),
@@ -1223,18 +1222,6 @@ String trackLabel(
         (codec?.trim().isEmpty ?? true))
       '#$id',
   ].join(' · ');
-}
-
-String formatPlayerRate(double rate) => rate == rate.roundToDouble()
-    ? rate.toStringAsFixed(0)
-    : rate.toStringAsFixed(rate * 10 == (rate * 10).roundToDouble() ? 1 : 2);
-
-String formatPlayerDuration(Duration duration) {
-  final safe = duration.isNegative ? Duration.zero : duration;
-  final hours = safe.inHours;
-  final minutes = safe.inMinutes.remainder(60).toString().padLeft(2, '0');
-  final seconds = safe.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return hours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
 }
 
 class _TimelineThumbShape extends SliderComponentShape {
