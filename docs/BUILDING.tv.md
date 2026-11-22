@@ -1,6 +1,6 @@
 # Building Zanzibarr for Samsung Tizen and LG webOS
 
-Zanzibarr 2.1 adds native TV entrypoints for Samsung Tizen TV and LG webOS 26 Re:New+. The desktop/mobile media_kit player is unchanged. TV builds use the official native `video_player` implementations and the same Rust NZB/NNTP/archive/range-server engine as every other platform.
+Zanzibarr's native TV entrypoints target Samsung Tizen TV and LG webOS 26 Re:New+. Preview packages are published in the v2.0 release while main continues as v2.1. The desktop/mobile media_kit player is unchanged. TV builds use the official native `video_player` implementations and the same Rust NZB/NNTP/archive/range-server engine as every other platform.
 
 This document records the four upstream references used for the port, their distinct requirements, and Zanzibarr's build/verification model.
 

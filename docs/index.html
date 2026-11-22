@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Zanzibarr — Stream anything from Usenet</title>
-<meta name="description" content="Zanzibarr v2.0 streams NZB content without downloading — multi-source search, health pre-checks, episode queue, OpenSubtitles, HDR & Dolby Vision. Free and open source.">
+<meta name="description" content="Zanzibarr v2.0 streams NZB content without downloading — desktop, Android, Samsung Tizen TV and LG webOS. Multi-source search, health pre-checks, episode queue and OpenSubtitles. Free and open source.">
 <meta property="og:title" content="Zanzibarr">
 <meta property="og:description" content="Stream anything from Usenet. Own nothing. Wait for nothing.">
 <meta property="og:image" content="screenshots/home_dark.png">
@@ -330,6 +330,7 @@
     <p class="kicker">What's new</p>
     <h2>{{ version }} — search smarter, keep watching</h2>
     <ul class="road">
+      <li class="done"><b>Native Samsung & LG TV previews</b> — Tizen 6.0, separate Tizen 10/2026 and webOS 26 packages with native playback, D-pad controls and the same lazy Rust engine</li>
       <li class="done"><b>Every source, one result list</b> — parallel multi-indexer search, Prowlarr/NZBHydra2, automatic Easynews web search and cross-source deduplication</li>
       <li class="done"><b>Health before playback</b> — Good / Repairable / Risky / Incomplete badges from capped NNTP STAT sampling, NZB structure and PAR2 capacity</li>
       <li class="done"><b>Season-pack continuity</b> — a natural-order play queue, watched-episode badges and a ten-second Up next card</li>
@@ -470,7 +471,7 @@ createApp({
         },
         {
           title: 'Couch & desk',
-          body: 'Native apps for macOS, Windows, Linux, Android and Android TV — leanback launcher, remote-friendly focus, hardware decode.',
+          body: 'Native apps for macOS, Windows, Linux, Android and Android TV — plus Samsung Tizen and LG webOS previews with native video players, D-pad controls and the same lazy engine.',
           icon: icon('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'),
         },
         {
@@ -524,6 +525,27 @@ createApp({
           icon: '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M8 21h8"/></svg>',
         },
         {
+          name: 'Samsung Tizen TV',
+          meta: 'Tizen 6.0+ (2021 onward), ARM softfp. Test-signed preview; physical-device validation pending.',
+          label: 'zanzibarr-tizen-6.0-arm.tpk',
+          url: 'https://github.com/envermeister/zanzibarr/releases/latest/download/zanzibarr-tizen-6.0-arm.tpk',
+          icon: '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M8 21h8"/></svg>',
+        },
+        {
+          name: 'Samsung Tizen TV (2026)',
+          meta: 'Tizen 10 / GCC 14.2, ARM softfp. Test-signed preview; physical-device validation pending.',
+          label: 'zanzibarr-tizen-10.0-arm.tpk',
+          url: 'https://github.com/envermeister/zanzibarr/releases/latest/download/zanzibarr-tizen-10.0-arm.tpk',
+          icon: '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M8 21h8"/></svg>',
+        },
+        {
+          name: 'LG webOS',
+          meta: 'webOS 26 Re:New+, ARM softfp. Test-development IPK; physical-device validation pending.',
+          label: 'zanzibarr-webos26-arm.ipk',
+          url: 'https://github.com/envermeister/zanzibarr/releases/latest/download/zanzibarr-webos26-arm.ipk',
+          icon: '<svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M8 21h8"/></svg>',
+        },
+        {
           name: 'Linux',
           meta: 'x64 tarball. Links the system libmpv — install libmpv2 first (Ubuntu 24.04 verified).',
           label: 'zanzibarr-linux-x64.tar.gz',
@@ -568,7 +590,7 @@ createApp({
         { text: 'Multiple NNTP accounts + audio-language preference', done: true },
         { text: 'Runtime HDR10+ detection — passive HEVC ST 2094-40 scan', done: true },
         { text: 'macOS — Developer ID signed, notarized & stapled', done: true },
-        { text: 'Samsung Tizen TV + LG webOS 26 — native players and CI-verified packages on main; physical-device testing next', done: true },
+        { text: 'Samsung Tizen TV + LG webOS 26 — preview packages in the v2.0 release; physical-device testing next', done: true },
         { text: 'TMDB / OMDb metadata', done: false },
         { text: 'iOS TestFlight & Android TV Play Store distribution', done: false },
         { text: 'Sleep timer', done: false },

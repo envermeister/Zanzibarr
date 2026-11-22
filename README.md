@@ -102,7 +102,7 @@ Search OpenSubtitles from the player by release name and moviehash, filter by la
 14 fully localized interfaces: English, Türkçe, Español, Deutsch, Français, Português, Italiano, Русский, 中文, 日本語, 한국어, हिन्दी, العربية and فارسی — with proper RTL layout. Dark and light themes, of course.
 
 **Built for the couch and the desk**
-Native apps for **macOS**, **Windows**, **Linux**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode), plus an unsigned iOS package for sideloading. The v2.1 development line also targets **Samsung Tizen TV** and **LG webOS 26 Re:New+** with their native video players and the same lazy Rust streaming engine. One codebase, no Electron, no compromises.
+Native apps for **macOS**, **Windows**, **Linux**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode), plus an unsigned iOS package for sideloading. The v2.0 release also includes **Samsung Tizen TV** and **LG webOS 26 Re:New+** preview packages with their native video players and the same lazy Rust streaming engine. One codebase, no Electron, no compromises.
 
 **Your credentials stay yours**
 Your Usenet, indexer and OpenSubtitles logins live exclusively in the operating system's secure keychain — never in files, never in logs, never on a server. Save multiple NNTP accounts and make one active for streaming, or keep several indexers enabled for search. Zanzibarr is fully on-device: no Zanzibarr accounts, no telemetry, no cloud.
@@ -128,7 +128,7 @@ Everything heavy — parsing, decoding, archive surgery, NNTP networking — is 
 
 ## Getting started
 
-1. Grab the latest build for your platform from [Releases](https://github.com/envermeister/zanzibarr/releases/latest) (Windows `.zip`, signed/notarized macOS `.zip`, Linux `.tar.gz`, Android `.apk` — pick `arm64-v8a` for most phones and TV boxes; unsigned iOS `.ipa` for sideloading).
+1. Grab the latest build for your platform from [Releases](https://github.com/envermeister/zanzibarr/releases/latest) (Windows `.zip`, signed/notarized macOS `.zip`, Linux `.tar.gz`, Android `.apk` — pick `arm64-v8a` for most phones and TV boxes; unsigned iOS `.ipa` for sideloading). TV previews: [Samsung Tizen 6.0](https://github.com/envermeister/zanzibarr/releases/latest/download/zanzibarr-tizen-6.0-arm.tpk), [Samsung Tizen 10 / 2026](https://github.com/envermeister/zanzibarr/releases/latest/download/zanzibarr-tizen-10.0-arm.tpk) and [LG webOS 26](https://github.com/envermeister/zanzibarr/releases/latest/download/zanzibarr-webos26-arm.ipk). The TPKs use a test signing profile and the IPK is a test-development package; physical Samsung/LG validation is still pending.
 2. Open the settings gear and save your Usenet provider's NNTP host, port, username and password. Add named backup accounts if you like; the saved account becomes active and secrets stay in the OS keychain.
 3. Optionally enable Newznab/Prowlarr/NZBHydra2 search profiles and configure an OpenSubtitles consumer API key.
 4. Drop in any `.nzb` or tap a search result and press play. Multi-episode posts can continue automatically through the play queue.
@@ -190,7 +190,7 @@ The **Linux** build links against the system libmpv — install the runtime firs
 - [x] Audio-language preference — remembered and applied across queue episodes
 - [x] Runtime HDR10+ detection — passive HEVC ST 2094-40 scan without extra fetches
 - [x] Signed, notarized & stapled macOS Apple Silicon distribution
-- [x] Samsung Tizen TV (6.0 and 10) + LG webOS 26 native players — CI-verified packages on main; physical-device validation pending
+- [x] Samsung Tizen TV (6.0 and 10) + LG webOS 26 native players — preview packages in the v2.0 release; physical-device validation pending
 - [ ] TMDB + OMDb metadata
 - [ ] iOS TestFlight distribution
 - [ ] Android TV Play Store listing
