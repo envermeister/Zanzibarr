@@ -651,7 +651,7 @@ mod tests {
                 ("Content-Type", "application/json"),
                 ("Api-Key", "gizli-anahtar"),
                 // Varsayılan User-Agent ezilmeli.
-                ("User-Agent", "Zanzibarr v1.9"),
+                ("User-Agent", "Zanzibarr v2.0"),
             ],
             br#"{"a":1}"#,
         )
@@ -663,7 +663,7 @@ mod tests {
         assert!(text.starts_with("POST /api/v1/login HTTP/1.1\r\nHost: api.example\r\n"));
         assert!(text.contains("Content-Type: application/json\r\n"));
         assert!(text.contains("Api-Key: gizli-anahtar\r\n"));
-        assert!(text.contains("User-Agent: Zanzibarr v1.9\r\n"));
+        assert!(text.contains("User-Agent: Zanzibarr v2.0\r\n"));
         assert!(!text.contains("User-Agent: zanzibarr/1.1"));
         assert!(text.contains("Content-Length: 7\r\n"));
         assert!(text.ends_with("\r\n\r\n{\"a\":1}"));

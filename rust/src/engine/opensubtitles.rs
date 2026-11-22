@@ -32,7 +32,7 @@ pub const DEFAULT_BASE_URL: &str = "https://api.opensubtitles.com";
 
 /// `User-Agent` OpenSubtitles tarafından "AppName vX.Y" biçiminde zorunlu
 /// tutulur; doğru biçim gelmezse API 403 döner (Best-Practices).
-const APP_USER_AGENT: &str = "Zanzibarr v1.9";
+const APP_USER_AGENT: &str = "Zanzibarr v2.0";
 
 const SEARCH_TIMEOUT: Duration = Duration::from_secs(20);
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(15);

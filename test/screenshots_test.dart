@@ -11,11 +11,15 @@ import 'package:zanzibarr/main.dart';
 import 'package:zanzibarr/player/gyuni_player_controls.dart';
 import 'package:zanzibarr/player/smart_canvas.dart';
 import 'package:zanzibarr/player/smart_canvas_overlay.dart';
+import 'package:zanzibarr/player/up_next_overlay.dart';
+import 'package:zanzibarr/search/search_history.dart';
 import 'package:zanzibarr/search/search_screen.dart';
 import 'package:zanzibarr/settings/indexer_settings.dart';
+import 'package:zanzibarr/settings/opensubtitles_settings.dart';
 import 'package:zanzibarr/settings/provider_settings.dart';
 import 'package:zanzibarr/settings/settings_screen.dart';
 import 'package:zanzibarr/settings/ui_preferences.dart';
+import 'package:zanzibarr/src/rust/api/health.dart';
 import 'package:zanzibarr/src/rust/api/search.dart';
 
 /// README için gerçek UI ekran görüntüleri üreten golden-test harness'ı.
@@ -39,27 +43,26 @@ ThemeData _screenshotTheme(Brightness brightness) {
     surface: isDark ? const Color(0xFF141416) : const Color(0xFFFFFFFF),
   );
   final foreground = isDark ? Colors.white : Colors.black;
-  InputDecorationTheme inputTheme({required Color fill, required Color border}) =>
-      InputDecorationTheme(
-        filled: true,
-        fillColor: fill,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 15,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _accent, width: 1.2),
-        ),
-      );
+  InputDecorationTheme inputTheme({
+    required Color fill,
+    required Color border,
+  }) => InputDecorationTheme(
+    filled: true,
+    fillColor: fill,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: border),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: border),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _accent, width: 1.2),
+    ),
+  );
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -87,14 +90,14 @@ ThemeData _screenshotTheme(Brightness brightness) {
         foregroundColor: isDark ? Colors.black : Colors.white,
         minimumSize: const Size(0, 44),
         padding: const EdgeInsets.symmetric(horizontal: 18),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(11),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: isDark ? const Color(0xF228282C) : const Color(0xF2323236),
+      backgroundColor: isDark
+          ? const Color(0xF228282C)
+          : const Color(0xF2323236),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     tooltipTheme: TooltipThemeData(
@@ -173,31 +176,115 @@ Future<void> _settleAssets(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 100));
 }
 
-/// Bellek içi sahte depo; ekran dolu bir form ile açılsın diye örnek değerli.
+/// Bellek içi sahte depo; çoklu hesap seçici ve dolu form örnek değerlerle
+/// açılır. Parola yalnızca testlerde izin verilen yer tutucudur.
 class _FakeStore extends ProviderSettingsStore {
+  static const profiles = [
+    ProviderProfile(
+      id: 'primary',
+      label: 'Easynews · EU',
+      host: 'secure-eu.news.easynews.com',
+      port: 563,
+      username: 'usenetfan',
+      password: 'TESTPASS123',
+      maxConnections: 20,
+    ),
+    ProviderProfile(
+      id: 'backup',
+      label: 'Backup provider',
+      host: 'news.example.net',
+      port: 563,
+      username: 'backup-user',
+      password: 'TESTPASS123',
+      maxConnections: 10,
+    ),
+  ];
+
   @override
-  Future<ProviderSettings> load() async => const ProviderSettings(
-    host: 'news.example.com',
-    port: 563,
-    username: 'usenetfan',
-    password: 'hunter2-example',
-    maxConnections: 20,
-  );
+  Future<List<ProviderProfile>> loadProfiles() async => profiles;
+
+  @override
+  Future<String?> activeProfileId() async => 'primary';
+
+  @override
+  Future<ProviderSettings> load() async => profiles.first.settings;
 
   @override
   Future<void> save(ProviderSettings settings) async {}
 }
 
-/// Indexer bölümü de dolu gözüksün diye sahte indexer deposu.
+/// Indexer bölümü Prowlarr + klasik Newznab profilleriyle dolu açılır.
 class _FakeIndexerStore extends IndexerSettingsStore {
+  static const profiles = [
+    IndexerProfile(
+      id: 'default',
+      label: 'My Newznab',
+      baseUrl: 'https://indexer.example/api',
+      apiKey: 'abc123-example-key',
+    ),
+    IndexerProfile(
+      id: 'prowlarr',
+      label: 'Prowlarr',
+      baseUrl: 'http://localhost:9696/prowlarr/1/api',
+      apiKey: 'def456-example-key',
+    ),
+  ];
+
   @override
-  Future<IndexerSettings> load() async => const IndexerSettings(
-    baseUrl: 'https://indexer.example',
-    apiKey: 'abc123-example-key',
-  );
+  Future<List<IndexerProfile>> loadProfiles() async => profiles;
+
+  @override
+  Future<IndexerSettings> load() async => profiles.first.settings;
 
   @override
   Future<void> save(IndexerSettings settings) async {}
+}
+
+class _FakeOpenSubtitlesStore extends OpenSubtitlesSettingsStore {
+  @override
+  Future<OpenSubtitlesSettings> load() async => const OpenSubtitlesSettings(
+    baseUrl: 'https://api.opensubtitles.com',
+    apiKey: 'example-consumer-key',
+    username: 'subtitle-fan',
+    password: 'TESTPASS123',
+  );
+
+  @override
+  Future<void> save(OpenSubtitlesSettings settings) async {}
+}
+
+/// Arama ekranında son/kayıtlı sorgu çiplerini de gösteren bellek içi depo.
+class _FakeHistoryStore extends SearchHistoryStore {
+  List<String> recent = ['dune part two', 'planet earth iii'];
+  List<String> saved = ['fight club', 'documentary 2160p'];
+
+  @override
+  Future<List<String>> loadRecent() async => List.of(recent);
+
+  @override
+  Future<List<String>> loadSaved() async => List.of(saved);
+
+  @override
+  Future<void> recordSearch(String query) async {
+    final entry = SearchHistoryStore.normalizeQuery(query);
+    if (entry.isEmpty) return;
+    recent = [entry, ...recent.where((q) => q != entry)];
+  }
+
+  @override
+  Future<void> clearRecent() async => recent = [];
+
+  @override
+  Future<void> saveSearch(String query) async {
+    final entry = SearchHistoryStore.normalizeQuery(query);
+    if (entry.isEmpty) return;
+    saved = [entry, ...saved.where((q) => q != entry)];
+  }
+
+  @override
+  Future<void> removeSaved(String query) async {
+    saved = saved.where((q) => q != query).toList();
+  }
 }
 
 /// Arama ekranı görseli için gerçekçi sonuç seti (rozetler Rust tarafından
@@ -210,7 +297,9 @@ List<SearchItemDto> _fakeResults() => [
     sourceId: 'default',
     sizeBytes: BigInt.from(19463027098),
     publishedEpochSecs:
-        DateTime.now().subtract(const Duration(days: 412)).millisecondsSinceEpoch ~/
+        DateTime.now()
+            .subtract(const Duration(days: 412))
+            .millisecondsSinceEpoch ~/
         1000,
     badges: const ['2160p', 'BluRay', 'HEVC', 'DV', 'HDR10', 'DD+ 5.1'],
     mediaKind: 'movie',
@@ -225,7 +314,9 @@ List<SearchItemDto> _fakeResults() => [
     sourceId: 'default',
     sizeBytes: BigInt.from(52613349376),
     publishedEpochSecs:
-        DateTime.now().subtract(const Duration(days: 87)).millisecondsSinceEpoch ~/
+        DateTime.now()
+            .subtract(const Duration(days: 87))
+            .millisecondsSinceEpoch ~/
         1000,
     badges: const ['2160p', 'Remux', 'HEVC', 'HDR', 'DV', 'DTS-HD MA 5.1'],
     mediaKind: 'movie',
@@ -233,18 +324,74 @@ List<SearchItemDto> _fakeResults() => [
   ),
   SearchItemDto(
     title: 'Fight.Club.1999.1080p.BluRay.x264.DTS-ESiR',
-    nzbUrl: 'https://indexer.example/getnzb/3',
-    source: 'indexer',
-    sourceId: 'default',
+    nzbUrl:
+        'easynews:demo-hash|Fight.Club.1999.1080p.BluRay.x264.DTS-ESiR.mkv|demo-sig',
+    source: 'easynews',
+    sourceId: '',
     sizeBytes: BigInt.from(10737418240),
     publishedEpochSecs:
-        DateTime.now().subtract(const Duration(days: 640)).millisecondsSinceEpoch ~/
+        DateTime.now()
+            .subtract(const Duration(days: 640))
+            .millisecondsSinceEpoch ~/
         1000,
     badges: const ['1080p', 'BluRay', 'x264', 'DTS'],
     mediaKind: 'movie',
     year: 1999,
   ),
 ];
+
+class _EmptyProviderStore extends ProviderSettingsStore {
+  @override
+  Future<ProviderSettings> load() async => const ProviderSettings();
+}
+
+NzbHealthDto _screenshotHealth(String status) => NzbHealthDto(
+  status: status,
+  sampledArticles: 96,
+  missingArticles: status == 'good' ? 0 : 4,
+  erroredSamples: 0,
+  estimatedMissingArticles: status == 'good' ? BigInt.zero : BigInt.from(8),
+  targetArticleCount: BigInt.from(1800),
+  targetFileCount: 1,
+  archiveVolumes: 0,
+  volumeGaps: 0,
+  headMissing: false,
+  par2Present: true,
+  par2RecoveryBlocks: 24,
+);
+
+/// PNG ve walkthrough GIF'in paylaştığı örnek arama sahnesi. Ağ/native çağrı
+/// yok; sağlık durumları ve NZB indirmeleri deterministik sahtelerdir.
+Widget _screenshotSearch({
+  bool delayDownload = false,
+  bool healthChecks = true,
+}) => SearchScreen(
+  store: _FakeIndexerStore(),
+  providerStore: healthChecks ? _FakeStore() : _EmptyProviderStore(),
+  historyStore: _FakeHistoryStore(),
+  searchFn:
+      ({
+        indexers,
+        easynews,
+        required query,
+        required limit,
+        required offset,
+      }) async {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        return SearchPageDto(total: BigInt.from(3), items: _fakeResults());
+      },
+  downloadFn: (config, url, name) async {
+    if (delayDownload) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+    final id = Uri.parse(url).pathSegments.last;
+    return '/tmp/demo-$id.nzb';
+  },
+  easynewsDownloadFn: (config, url, name) async => '/tmp/easynews-demo.nzb',
+  healthFn: (config, path) async =>
+      _screenshotHealth(path.contains('demo-2') ? 'repairable' : 'good'),
+  onDownloaded: (_) {},
+);
 
 /// Oyuncu chrome'u için örnek parça listesi.
 const _tracks = Tracks(
@@ -287,7 +434,9 @@ class _FakeVideoFrame extends StatelessWidget {
     );
     final ratio = containedAspectRatio;
     if (ratio == null) return frame;
-    return Center(child: AspectRatio(aspectRatio: ratio, child: frame));
+    return Center(
+      child: AspectRatio(aspectRatio: ratio, child: frame),
+    );
   }
 }
 
@@ -317,6 +466,7 @@ class _CenterPlayButton extends StatelessWidget {
 /// Tam pencere oyuncu kompozisyonu: yer tutucu video + gerçek chrome.
 Widget _playerComposition({
   Widget? editorOverlay,
+  Widget? foregroundOverlay,
   bool canvasActive = false,
   bool showCenterPlay = true,
   double? containedAspectRatio,
@@ -370,6 +520,7 @@ Widget _playerComposition({
           onLoadExternalAudio: () {},
           onLoadExternalSubtitle: () {},
         ),
+        ?foregroundOverlay,
       ],
     ),
   );
@@ -480,40 +631,45 @@ class _TuningDialogReplica extends StatelessWidget {
             children: [
               _TuningRow(
                 label: l10n.videoPresetLabel,
-                child: segments(
-                  [l10n.presetNatural, l10n.presetCinema, l10n.presetVivid],
+                child: segments([
+                  l10n.presetNatural,
                   l10n.presetCinema,
-                ),
+                  l10n.presetVivid,
+                ], l10n.presetCinema),
               ),
               _TuningRow(
                 label: l10n.gpuScalingLabel,
-                child: segments(
-                  [l10n.presetLowPower, l10n.presetBalanced, l10n.presetQuality],
+                child: segments([
+                  l10n.presetLowPower,
+                  l10n.presetBalanced,
                   l10n.presetQuality,
-                ),
+                ], l10n.presetQuality),
               ),
               _TuningRow(
                 label: l10n.audioPresetLabel,
-                child: segments(
-                  [l10n.presetBalanced, l10n.presetDialogue, l10n.presetNight],
+                child: segments([
                   l10n.presetBalanced,
-                ),
+                  l10n.presetDialogue,
+                  l10n.presetNight,
+                ], l10n.presetBalanced),
               ),
               _TuningRow(
                 label: l10n.seekStepLabel,
-                child: segments(
-                  ['1 ${l10n.secondsUnitShort}', '5 ${l10n.secondsUnitShort}',
-                      '10 ${l10n.secondsUnitShort}', '30 ${l10n.secondsUnitShort}'],
+                child: segments([
+                  '1 ${l10n.secondsUnitShort}',
+                  '5 ${l10n.secondsUnitShort}',
                   '10 ${l10n.secondsUnitShort}',
-                ),
+                  '30 ${l10n.secondsUnitShort}',
+                ], '10 ${l10n.secondsUnitShort}'),
               ),
               _TuningRow(
                 label: l10n.periodicInfoLabel,
-                child: segments(
-                  [l10n.off, '15 ${l10n.secondsUnitShort}',
-                      '30 ${l10n.secondsUnitShort}', '60 ${l10n.secondsUnitShort}'],
+                child: segments([
                   l10n.off,
-                ),
+                  '15 ${l10n.secondsUnitShort}',
+                  '30 ${l10n.secondsUnitShort}',
+                  '60 ${l10n.secondsUnitShort}',
+                ], l10n.off),
               ),
               _TuningRow(
                 label: l10n.audioSyncLabel,
@@ -608,9 +764,7 @@ class _TuningDialogReplica extends StatelessWidget {
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () {}, child: Text(l10n.doneLabel)),
-      ],
+      actions: [TextButton(onPressed: () {}, child: Text(l10n.doneLabel))],
     );
   }
 }
@@ -672,208 +826,288 @@ void main() {
 
   const window = Size(2560, 1600); // 1280×800 logical @2x
 
-  testWidgets('home_dark', (tester) => _desktopShot(() async {
-    _useWindow(tester, window);
-    await tester.pumpWidget(
-      _screenshotApp(const HomeScreen(), ThemeMode.dark),
-    );
-    await _settleAssets(tester);
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('../docs/screenshots/home_dark.png'),
-    );
-  }), skip: _skipScreenshots);
-
-  testWidgets('home_light', (tester) => _desktopShot(() async {
-    _useWindow(tester, window);
-    await tester.pumpWidget(
-      _screenshotApp(const HomeScreen(), ThemeMode.light),
-    );
-    await _settleAssets(tester);
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('../docs/screenshots/home_light.png'),
-    );
-  }), skip: _skipScreenshots);
-
-  testWidgets('settings', (tester) => _desktopShot(() async {
-    _useWindow(tester, const Size(2560, 2000)); // 1280×1000 logical @2x
-    await tester.pumpWidget(
-      _screenshotApp(
-        SettingsScreen(
-          store: _FakeStore(),
-          indexerStore: _FakeIndexerStore(),
-          uiPreferences: UiPreferencesController(UiPreferencesStore()),
-        ),
-        ThemeMode.dark,
-      ),
-    );
-    await tester.pumpAndSettle();
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('../docs/screenshots/settings.png'),
-    );
-  }), skip: _skipScreenshots);
-
-  testWidgets('search', (tester) => _desktopShot(() async {
-    _useWindow(tester, window);
-    await tester.pumpWidget(
-      _screenshotApp(
-        SearchScreen(
-          store: _FakeIndexerStore(),
-          searchFn: ({indexers, easynews, required query, required limit, required offset}) async => SearchPageDto(
-            total: BigInt.from(3),
-            items: _fakeResults(),
-          ),
-          onDownloaded: (_) {},
-        ),
-        ThemeMode.dark,
-      ),
-    );
-    await _settleAssets(tester);
-    await tester.enterText(find.byType(TextField), 'fight club');
-    await tester.pump();
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('../docs/screenshots/search.png'),
-    );
-  }), skip: _skipScreenshots);
-
-  testWidgets('player_controls', (tester) => _desktopShot(() async {
-    _useWindow(tester, window);
-    await tester.pumpWidget(
-      _screenshotApp(_playerComposition(), ThemeMode.dark),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('../docs/screenshots/player_controls.png'),
-    );
-  }), skip: _skipScreenshots);
-
-  testWidgets('advanced_settings', (tester) => _desktopShot(() async {
-    _useWindow(tester, window);
-    await tester.pumpWidget(
-      _screenshotApp(
-        _TuningDialogOpener(child: _playerComposition()),
-        ThemeMode.dark,
-      ),
-    );
-    await tester.pump();
-    // Diyalog route animasyonu tamamlansın.
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.pump(const Duration(milliseconds: 400));
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('../docs/screenshots/advanced_settings.png'),
-    );
-  }), skip: _skipScreenshots);
-
-  testWidgets('smart_canvas', (tester) => _desktopShot(() async {
-    _useWindow(tester, window);
-    await tester.pumpWidget(
-      _screenshotApp(
-        _playerComposition(
-          canvasActive: true,
-          showCenterPlay: false,
-          containedAspectRatio: 16 / 9,
-          editorOverlay: SmartCanvasOverlay(
-            crop: const CanvasCrop(
-              left: 0.12,
-              top: 0.15,
-              right: 0.88,
-              bottom: 0.85,
-            ),
-            sourceAspectRatio: 16 / 9,
-            onChanged: (_) {},
-            onCommit: (_) {},
-            onCancel: () {},
-          ),
-        ),
-        ThemeMode.dark,
-      ),
-    );
-    await tester.pump();
-    // Overlay'in AnimatedOpacity'si (160 ms) tamamlansın.
-    await tester.pump(const Duration(milliseconds: 300));
-    await expectLater(
-      find.byType(MaterialApp),
-      matchesGoldenFile('../docs/screenshots/smart_canvas.png'),
-    );
-  }), skip: _skipScreenshots);
-
-  /// docs/screenshots/demo.gif için kare dizisi: ana ekran → indexer araması
-  /// → sonuçlar → indirme. Kareler `build/demo_frames/` altına düşer ve
-  /// ffmpeg ile paletli GIF'e birleştirilir (bkz. commit mesajı/notlar).
-  testWidgets('demo_frames', (tester) => _desktopShot(() async {
-    _useWindow(tester, const Size(2200, 1720)); // 1100×860 logical @2x
-    var frameIndex = 0;
-    Future<void> frame() async {
-      frameIndex++;
-      final name = 'f${frameIndex.toString().padLeft(2, '0')}';
+  testWidgets(
+    'home_dark',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, window);
+      await tester.pumpWidget(
+        _screenshotApp(const HomeScreen(), ThemeMode.dark),
+      );
+      await _settleAssets(tester);
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('../build/demo_frames/$name.png'),
+        matchesGoldenFile('../docs/screenshots/home_dark.png'),
       );
-    }
+    }),
+    skip: _skipScreenshots,
+  );
 
-    // 1-3: ana ekran (indexer kartı ile).
-    await tester.pumpWidget(_screenshotApp(const HomeScreen(), ThemeMode.dark));
-    await _settleAssets(tester);
-    for (var n = 0; n < 3; n++) {
-      await frame();
-      await tester.pump(const Duration(milliseconds: 250));
-    }
+  testWidgets(
+    'home_light',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, window);
+      await tester.pumpWidget(
+        _screenshotApp(const HomeScreen(), ThemeMode.light),
+      );
+      await _settleAssets(tester);
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../docs/screenshots/home_light.png'),
+      );
+    }),
+    skip: _skipScreenshots,
+  );
 
-    // 4-7: arama ekranında sorgu yazımı.
-    await tester.pumpWidget(
-      _screenshotApp(
-        SearchScreen(
-          store: _FakeIndexerStore(),
-          searchFn: ({indexers, easynews, required query, required limit, required offset}) async {
-            await Future<void>.delayed(const Duration(milliseconds: 350));
-            return SearchPageDto(total: BigInt.from(3), items: _fakeResults());
-          },
-          downloadFn: (config, url, name) async {
-            await Future<void>.delayed(const Duration(seconds: 2));
-            return '/tmp/demo.nzb';
-          },
-          onDownloaded: (_) {},
+  testWidgets(
+    'settings',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, const Size(2560, 4600)); // 1280×2300 logical @2x
+      await tester.pumpWidget(
+        _screenshotApp(
+          SettingsScreen(
+            store: _FakeStore(),
+            indexerStore: _FakeIndexerStore(),
+            osStore: _FakeOpenSubtitlesStore(),
+            uiPreferences: UiPreferencesController(UiPreferencesStore()),
+          ),
+          ThemeMode.dark,
         ),
-        ThemeMode.dark,
-      ),
-    );
-    await _settleAssets(tester);
-    for (final query in ['f', 'figh', 'fight cl', 'fight club']) {
-      await tester.enterText(find.byType(TextField), query);
+      );
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../docs/screenshots/settings.png'),
+      );
+    }),
+    skip: _skipScreenshots,
+  );
+
+  testWidgets(
+    'search',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, window);
+      await tester.pumpWidget(
+        _screenshotApp(_screenshotSearch(), ThemeMode.dark),
+      );
+      await _settleAssets(tester);
+      await tester.enterText(find.byType(TextField), 'fight club');
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../docs/screenshots/search.png'),
+      );
+    }),
+    skip: _skipScreenshots,
+  );
+
+  testWidgets(
+    'player_controls',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, window);
+      await tester.pumpWidget(
+        _screenshotApp(_playerComposition(), ThemeMode.dark),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../docs/screenshots/player_controls.png'),
+      );
+    }),
+    skip: _skipScreenshots,
+  );
+
+  testWidgets(
+    'advanced_settings',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, window);
+      await tester.pumpWidget(
+        _screenshotApp(
+          _TuningDialogOpener(child: _playerComposition()),
+          ThemeMode.dark,
+        ),
+      );
+      await tester.pump();
+      // Diyalog route animasyonu tamamlansın.
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 400));
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../docs/screenshots/advanced_settings.png'),
+      );
+    }),
+    skip: _skipScreenshots,
+  );
+
+  testWidgets(
+    'smart_canvas',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, window);
+      await tester.pumpWidget(
+        _screenshotApp(
+          _playerComposition(
+            canvasActive: true,
+            showCenterPlay: false,
+            containedAspectRatio: 16 / 9,
+            editorOverlay: SmartCanvasOverlay(
+              crop: const CanvasCrop(
+                left: 0.12,
+                top: 0.15,
+                right: 0.88,
+                bottom: 0.85,
+              ),
+              sourceAspectRatio: 16 / 9,
+              onChanged: (_) {},
+              onCommit: (_) {},
+              onCancel: () {},
+            ),
+          ),
+          ThemeMode.dark,
+        ),
+      );
+      await tester.pump();
+      // Overlay'in AnimatedOpacity'si (160 ms) tamamlansın.
+      await tester.pump(const Duration(milliseconds: 300));
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../docs/screenshots/smart_canvas.png'),
+      );
+    }),
+    skip: _skipScreenshots,
+  );
+
+  testWidgets(
+    'up_next',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, window);
+      await tester.pumpWidget(
+        _screenshotApp(
+          _playerComposition(
+            showCenterPlay: false,
+            foregroundOverlay: UpNextOverlay(
+              entryName: 'Planet.Earth.III.S01E02.2160p.WEB-DL.DV.HDR.HEVC.mkv',
+              onPlayNow: () {},
+              onCancel: () {},
+              onClearQueue: () {},
+            ),
+          ),
+          ThemeMode.dark,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('../docs/screenshots/up_next.png'),
+      );
+      // Geri sayım zamanlayıcısını test sonundan önce dispose et.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    }),
+    skip: _skipScreenshots,
+  );
+
+  /// docs/screenshots/demo.gif için kare dizisi: ana ekran → arama geçmişi →
+  /// sonuçlar → indirme → oynatıcı → Up next. Kareler `build/demo_frames/`
+  /// altına düşer ve ffmpeg ile paletli GIF'e birleştirilir.
+  testWidgets(
+    'demo_frames',
+    (tester) => _desktopShot(() async {
+      _useWindow(tester, const Size(2200, 1720)); // 1100×860 logical @2x
+      var frameIndex = 0;
+      Future<void> frame() async {
+        frameIndex++;
+        final name = 'f${frameIndex.toString().padLeft(2, '0')}';
+        await expectLater(
+          find.byType(MaterialApp),
+          matchesGoldenFile('../build/demo_frames/$name.png'),
+        );
+      }
+
+      // 1-3: ana ekran (indexer kartı ile).
+      await tester.pumpWidget(
+        _screenshotApp(const HomeScreen(), ThemeMode.dark),
+      );
+      await _settleAssets(tester);
+      for (var n = 0; n < 3; n++) {
+        await frame();
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+
+      // 4-7: arama ekranında sorgu yazımı.
+      await tester.pumpWidget(
+        _screenshotApp(
+          _screenshotSearch(delayDownload: true, healthChecks: false),
+          ThemeMode.dark,
+        ),
+      );
+      await _settleAssets(tester);
+      for (final query in ['f', 'figh', 'fight cl', 'fight club']) {
+        await tester.enterText(find.byType(TextField), query);
+        await tester.pump();
+        await frame();
+      }
+
+      // 8: arama spinner'ı.
+      await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pump();
       await frame();
-    }
 
-    // 8: arama spinner'ı.
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await frame();
+      // 9-10: sonuçlar.
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.pump();
+      await frame();
+      await tester.pump(const Duration(milliseconds: 250));
+      await frame();
 
-    // 9-10: sonuçlar.
-    await tester.pump(const Duration(milliseconds: 450));
-    await tester.pump();
-    await frame();
-    await tester.pump(const Duration(milliseconds: 250));
-    await frame();
+      // 11-12: ilk sonuca dokunma → indirme spinner'ı.
+      await tester.tap(find.text(_fakeResults().first.title));
+      await tester.pump();
+      await frame();
+      await tester.pump(const Duration(milliseconds: 250));
+      await frame();
+      // Gecikmeli downloadFn'in saati bitsin ki teardown'da timer kalmasın.
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
 
-    // 11-12: ilk sonuca dokunma → indirme spinner'ı.
-    await tester.tap(find.text(_fakeResults().first.title));
-    await tester.pump();
-    await frame();
-    await tester.pump(const Duration(milliseconds: 250));
-    await frame();
-    // Gecikmeli downloadFn'in saati bitsin ki teardown'da timer kalmasın.
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
-  }), skip: _skipScreenshots);
+      // 13-15: gerçek oynatıcı chrome'u.
+      await tester.pumpWidget(
+        _screenshotApp(_playerComposition(), ThemeMode.dark),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      for (var n = 0; n < 3; n++) {
+        await frame();
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+
+      // 16-18: bölüm sonundaki otomatik geçiş kartı.
+      await tester.pumpWidget(
+        _screenshotApp(
+          _playerComposition(
+            showCenterPlay: false,
+            foregroundOverlay: UpNextOverlay(
+              entryName: 'Planet.Earth.III.S01E02.2160p.WEB-DL.DV.HDR.HEVC.mkv',
+              onPlayNow: () {},
+              onCancel: () {},
+              onClearQueue: () {},
+            ),
+          ),
+          ThemeMode.dark,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      for (var n = 0; n < 3; n++) {
+        await frame();
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    }),
+    skip: _skipScreenshots,
+  );
 }

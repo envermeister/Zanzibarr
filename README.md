@@ -11,7 +11,8 @@
 <p align="center">
   <a href="https://github.com/envermeister/zanzibarr/actions/workflows/windows-build.yml"><img src="https://github.com/envermeister/zanzibarr/actions/workflows/windows-build.yml/badge.svg" alt="Windows build"></a>
   <a href="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml"><img src="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml/badge.svg" alt="Android build"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Android%20%C2%B7%20Android%20TV-blue" alt="platforms">
+  <a href="https://github.com/envermeister/zanzibarr/releases/latest"><img src="https://img.shields.io/github/v/release/envermeister/zanzibarr?label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux%20%C2%B7%20Android%20%C2%B7%20Android%20TV%20%C2%B7%20iOS-blue" alt="platforms">
   <img src="https://img.shields.io/badge/tests-330%20Rust%20%2B%20261%20Flutter-brightgreen" alt="tests">
   <a href="https://buymeacoffee.com/envermeister"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20Zanzibarr-FFDD00?logo=buy-me-a-coffee&logoColor=black" alt="Support on Buy Me a Coffee"></a>
   <a href="https://ko-fi.com/envermeister"><img src="https://img.shields.io/badge/Ko--fi-support%20Zanzibarr-F16061?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
@@ -37,12 +38,25 @@ Zanzibarr turns Usenet into your personal streaming library. Point it at any `.n
 
 <details>
   <summary>More screenshots</summary>
-  <p align="center"><img src="docs/screenshots/search.png" alt="Indexer search" width="720"></p>
+  <p align="center"><img src="docs/screenshots/search.png" alt="Multi-source search with NZB health badges" width="720"></p>
+  <p align="center"><img src="docs/screenshots/up_next.png" alt="Automatic next episode with Up next countdown" width="720"></p>
   <p align="center"><img src="docs/screenshots/advanced_settings.png" alt="Video & audio settings" width="720"></p>
   <p align="center"><img src="docs/screenshots/smart_canvas.png" alt="Smart Canvas" width="720"></p>
-  <p align="center"><img src="docs/screenshots/settings.png" alt="Settings" width="720"></p>
+  <p align="center"><img src="docs/screenshots/settings.png" alt="Multiple provider, indexer and OpenSubtitles settings" width="720"></p>
   <p align="center"><img src="docs/screenshots/home_light.png" alt="Home — light" width="720"></p>
 </details>
+
+## New in v2.0
+
+- **Search everywhere at once** — multiple Newznab indexers in parallel, Prowlarr/NZBHydra2 endpoints, automatic Easynews web search and cross-source deduplication.
+- **Know before you play** — capped NNTP `STAT` sampling plus structural/PAR2 analysis produces Good, Repairable, Risky or Incomplete health badges without downloading article bodies.
+- **Keep the season going** — a natural-order play queue, watched-episode badges and a ten-second Up next card with Play now / Finish episode / Clear queue.
+- **Find and remember subtitles** — OpenSubtitles search by release name and moviehash, per-language preferences, per-episode file associations and Arabic glyph fallback. External subtitles apply to the local player, not cast receivers.
+- **Your accounts and languages, remembered** — multiple switchable NNTP profiles, multiple enabled indexer profiles, and preferred audio language carried across episodes.
+- **More signal, less noise** — recent/saved search chips and passive runtime HDR10+ detection for HEVC in start-code containers such as Matroska.
+- **A cleaner macOS install** — the Apple Silicon package is Developer ID signed, notarized and stapled.
+
+Read the [full v2.0 release notes](https://github.com/envermeister/zanzibarr/releases/tag/v2.0).
 
 ## Why Zanzibarr is different
 
@@ -50,7 +64,13 @@ Zanzibarr turns Usenet into your personal streaming library. Point it at any `.n
 The Rust engine maps every seek position to the exact Usenet segments that hold it, fetches only those, decodes yEnc on the fly and serves the result through a lazy, range-aware local stream. Pause the player and the network goes quiet. Close the app and nothing is left behind on your disk.
 
 **Find it and play it — without leaving the app**
-Hook up any Newznab-compatible indexer and the home screen becomes your launchpad: capability discovery, release names parsed into quality badges (2160p · HEVC · DV · HDR10+ · TrueHD · Atmos · group), and a single tap streams the NZB straight into the player. No browser round-trips, no download manager, no queue.
+Connect multiple Newznab-compatible indexers — including Prowlarr and NZBHydra2 endpoints — and Zanzibarr searches every enabled profile in parallel. Easynews web search joins automatically when Easynews is your active provider, duplicates collapse into one result, and recent/saved searches are one chip away. Release names become quality badges (2160p · HEVC · DV · HDR10+ · TrueHD · Atmos · group); a single tap streams the NZB straight into the player.
+
+**Check health before committing**
+A capped, time-boxed sample of NNTP `STAT` responses, NZB structure and PAR2 recovery capacity produces Good / Repairable / Risky / Incomplete badges before playback. No article bodies are downloaded for the pre-check, and its NZB is reused when you press play.
+
+**One episode ends, the next is ready**
+Season packs form a natural-order queue. Watched entries are badged, the first unwatched episode is focused, and an Up next countdown can auto-play, finish or clear the queue. Queue setup fetches nothing; the next stream starts only at the transition.
 
 **Seek like it's a local file**
 Byte offsets are resolved from the decoded yEnc `begin/end` positions of every segment — never guessed from article sizes. The result is frame-accurate seeking across thousands of segments, even mid-segment, even on 100+ GB releases.
@@ -73,16 +93,19 @@ Missing or corrupt Usenet segments no longer kill the movie: hit **Repair with P
 Letterboxed rip? Draw your own crop with draggable handles, preview the aspect ratio live, and apply it on the GPU surface without touching hardware decode.
 
 **A player that gets out of the way**
-Auto-hiding controls, double-click to seek ±10 s, click-to-pause, frame stepping, speed control, audio sync nudge, volume slider, Picture-in-Picture, and external audio/subtitle loading alongside the embedded tracks.
+Auto-hiding controls, double-click to seek ±10 s, click-to-pause, frame stepping, speed control, audio sync nudge, volume slider, Picture-in-Picture, and external audio/subtitle loading alongside the embedded tracks. Your preferred audio language is remembered across episodes.
+
+**Subtitles that find you**
+Search OpenSubtitles from the player by release name and moviehash, filter by language and apply the result without restarting. Language and downloaded-file associations carry into the next episode; bundled Noto Arabic fonts prevent missing-glyph squares. OpenSubtitles requires your own consumer API key (and an account login for free-tier downloads). External files are local-player only, not forwarded to cast receivers.
 
 **Speaks your language**
 14 fully localized interfaces: English, Türkçe, Español, Deutsch, Français, Português, Italiano, Русский, 中文, 日本語, 한국어, हिन्दी, العربية and فارسی — with proper RTL layout. Dark and light themes, of course.
 
 **Built for the couch and the desk**
-Native apps for **macOS**, **Windows**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode). One codebase, no Electron, no compromises.
+Native apps for **macOS**, **Windows**, **Linux**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode), plus an unsigned iOS package for sideloading. One codebase, no Electron, no compromises.
 
 **Your credentials stay yours**
-Your Usenet login lives exclusively in the operating system's secure keychain — never in files, never in logs, never on a server. Zanzibarr is fully on-device: no accounts, no telemetry, no cloud.
+Your Usenet, indexer and OpenSubtitles logins live exclusively in the operating system's secure keychain — never in files, never in logs, never on a server. Save multiple NNTP accounts and make one active for streaming, or keep several indexers enabled for search. Zanzibarr is fully on-device: no Zanzibarr accounts, no telemetry, no cloud.
 
 ## How it works
 
@@ -104,9 +127,10 @@ Everything heavy — parsing, decoding, archive surgery, NNTP networking — is 
 
 ## Getting started
 
-1. Grab the latest build for your platform from [Releases](https://github.com/envermeister/zanzibarr/releases) (Windows `.zip`, macOS `.zip`, Linux `.tar.gz`, Android `.apk` — pick `arm64-v8a` for phones and TV boxes).
-2. Open the settings gear and add your Usenet provider's NNTP host, port, username and password. They're stored in the OS keychain.
-3. Drop in any `.nzb` from your favorite indexer and press play.
+1. Grab the latest build for your platform from [Releases](https://github.com/envermeister/zanzibarr/releases/latest) (Windows `.zip`, signed/notarized macOS `.zip`, Linux `.tar.gz`, Android `.apk` — pick `arm64-v8a` for most phones and TV boxes; unsigned iOS `.ipa` for sideloading).
+2. Open the settings gear and save your Usenet provider's NNTP host, port, username and password. Add named backup accounts if you like; the saved account becomes active and secrets stay in the OS keychain.
+3. Optionally enable Newznab/Prowlarr/NZBHydra2 search profiles and configure an OpenSubtitles consumer API key.
+4. Drop in any `.nzb` or tap a search result and press play. Multi-episode posts can continue automatically through the play queue.
 
 You need your own Usenet provider account and NZB sources — Zanzibarr is the player, not the library.
 
@@ -130,7 +154,7 @@ flutter test           # Flutter side
 cargo test             # inside rust/ — engine side
 ```
 
-CI produces the Windows `.zip`, macOS `.zip`, Linux `.tar.gz`, Android `.apk` and iOS (unsigned `.ipa`) artifacts on demand (see `.github/workflows/`).
+CI produces the Windows `.zip`, Linux `.tar.gz`, Android `.apk` and iOS (unsigned `.ipa`) release artifacts (see `.github/workflows/`). The macOS Apple Silicon `.zip` is built locally, Developer ID signed, notarized and stapled before upload.
 
 The **Linux** build links against the system libmpv — install the runtime first (`sudo apt install libmpv2` on Ubuntu/Debian; DV tone-mapping needs a libplacebo-enabled build, which Ubuntu 24.04 ships). Detailed notes: [`docs/BUILDING.linux.md`](docs/BUILDING.linux.md).
 
@@ -152,6 +176,21 @@ The **Linux** build links against the system libmpv — install the runtime firs
 - [x] Subtitle font picker (bundled Noto Sans/Serif/Mono, remembered per title)
 - [x] Android TV D-pad navigation overhaul (settings & search fully remote-driven)
 - [x] Multi-file NZB picker — choose the episode inside season packs (direct videos, RAR/7z & obfuscated sets)
+- [x] Play queue — natural-order auto-play, watched badges and an Up next countdown
+- [x] NZB health pre-check — STAT sampling + structure/PAR2 analysis before playback
+- [x] Multiple indexer accounts — parallel search, Prowlarr/NZBHydra2 and cross-source dedup
+- [x] Easynews web search — automatic alongside NNTP when Easynews is the provider
+- [x] Recent & saved searches — keyboard/D-pad-friendly history chips
+- [x] OpenSubtitles — release/moviehash search, downloads and per-episode preferences
+- [x] Arabic subtitle glyph fallback — bundled Noto Arabic fonts
+- [x] Multiple NNTP accounts — named profiles with an active streaming account
+- [x] Audio-language preference — remembered and applied across queue episodes
+- [x] Runtime HDR10+ detection — passive HEVC ST 2094-40 scan without extra fetches
+- [x] Signed, notarized & stapled macOS Apple Silicon distribution
+- [ ] TMDB + OMDb metadata
+- [ ] iOS TestFlight distribution
+- [ ] Android TV Play Store listing
+- [ ] Sleep timer
 
 ## License
 
