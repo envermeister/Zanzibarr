@@ -124,7 +124,7 @@ Native codecs, HDR and audio formats are determined by the TV and its media subs
 
 ### Tizen
 
-Prerequisites: Tizen SDK/rootstrap, .NET, `flutter-tizen`, an active signing profile and Rust.
+Prerequisites: Tizen SDK/rootstrap, .NET, `flutter-tizen`, an active signing profile and Rust. On Apple Silicon, Samsung's host tools run under Rosetta; their x86_64 Homebrew dependencies must also be present (GCC 9.2 expects `libisl.19`, while GCC 14.2 expects `libisl.23`, `libintl.8` and `libzstd.1`). Ubuntu CI does not need those macOS host libraries.
 
 ```bash
 export TIZEN_SDK=/path/to/tizen-studio
@@ -165,4 +165,6 @@ The verifier extracts the engine from each TPK/IPK and checks ARM ELF, SONAME an
 - Rust: 330 tests plus clippy.
 - Flutter: 275 tests plus analysis, including TV audio preference, launcher, controls, fake native stream opening, queue transition and platform configuration tests.
 - Both isolated TV dependency profiles and both SDK analyzers pass.
-- Real Samsung/LG TV installation, codec behavior, NNTP credentials, playback and remote behavior still require physical-device verification.
+- The Tizen 6.0/GCC 9.2 and Tizen 10.0/GCC 14.2 engines were also built independently from CI. `readelf` confirmed ELF32/ARM, soft-float ABI and the expected SONAME, with no dynamic `libstdc++` dependency in either engine.
+- [CI run 45067947147](https://github.com/envermeister/zanzibarr/actions/runs/45067947147) produced and verified all three packages. The downloaded Tizen 6.0 TPK, Tizen 10.0 TPK and webOS IPK were independently extracted and verified again with `tools/verify_tv_package.sh`.
+- Real Samsung/LG TV installation, codec behavior, NNTP credentials, playback and remote behavior still require physical-device verification. Package/ABI verification does not establish on-device playback or hardware codec support.

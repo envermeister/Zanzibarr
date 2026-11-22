@@ -12,8 +12,8 @@
   <a href="https://github.com/envermeister/zanzibarr/actions/workflows/windows-build.yml"><img src="https://github.com/envermeister/zanzibarr/actions/workflows/windows-build.yml/badge.svg" alt="Windows build"></a>
   <a href="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml"><img src="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml/badge.svg" alt="Android build"></a>
   <a href="https://github.com/envermeister/zanzibarr/releases/latest"><img src="https://img.shields.io/github/v/release/envermeister/zanzibarr?label=release" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux%20%C2%B7%20Android%20%C2%B7%20Android%20TV%20%C2%B7%20iOS-blue" alt="platforms">
-  <img src="https://img.shields.io/badge/tests-330%20Rust%20%2B%20261%20Flutter-brightgreen" alt="tests">
+  <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux%20%C2%B7%20Android%20%C2%B7%20Android%20TV%20%C2%B7%20iOS%20%C2%B7%20Tizen%20%C2%B7%20webOS-blue" alt="platforms">
+  <img src="https://img.shields.io/badge/tests-330%20Rust%20%2B%20275%20Flutter-brightgreen" alt="tests">
   <a href="https://buymeacoffee.com/envermeister"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20Zanzibarr-FFDD00?logo=buy-me-a-coffee&logoColor=black" alt="Support on Buy Me a Coffee"></a>
   <a href="https://ko-fi.com/envermeister"><img src="https://img.shields.io/badge/Ko--fi-support%20Zanzibarr-F16061?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
@@ -102,7 +102,7 @@ Search OpenSubtitles from the player by release name and moviehash, filter by la
 14 fully localized interfaces: English, Türkçe, Español, Deutsch, Français, Português, Italiano, Русский, 中文, 日本語, 한국어, हिन्दी, العربية and فارسی — with proper RTL layout. Dark and light themes, of course.
 
 **Built for the couch and the desk**
-Native apps for **macOS**, **Windows**, **Linux**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode), plus an unsigned iOS package for sideloading. One codebase, no Electron, no compromises.
+Native apps for **macOS**, **Windows**, **Linux**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode), plus an unsigned iOS package for sideloading. The v2.1 development line also targets **Samsung Tizen TV** and **LG webOS 26 Re:New+** with their native video players and the same lazy Rust streaming engine. One codebase, no Electron, no compromises.
 
 **Your credentials stay yours**
 Your Usenet, indexer and OpenSubtitles logins live exclusively in the operating system's secure keychain — never in files, never in logs, never on a server. Save multiple NNTP accounts and make one active for streaming, or keep several indexers enabled for search. Zanzibarr is fully on-device: no Zanzibarr accounts, no telemetry, no cloud.
@@ -120,7 +120,8 @@ Your Usenet, indexer and OpenSubtitles logins live exclusively in the operating 
                               │
               localhost HTTP server (Range requests)
                               │
-                     libmpv / media_kit
+            libmpv / media_kit (desktop/mobile)
+            native video_player (Tizen/webOS)
 ```
 
 Everything heavy — parsing, decoding, archive surgery, NNTP networking — is Rust (`flutter_rust_bridge` under the hood). Everything you touch is Flutter. The engine only ever downloads the slices you actually watch.
@@ -156,6 +157,8 @@ cargo test             # inside rust/ — engine side
 
 CI produces the Windows `.zip`, Linux `.tar.gz`, Android `.apk` and iOS (unsigned `.ipa`) release artifacts (see `.github/workflows/`). The macOS Apple Silicon `.zip` is built locally, Developer ID signed, notarized and stapled before upload.
 
+Samsung Tizen 6.0/10.0 and LG webOS 26 build instructions, native player limitations and package verification are documented in [`docs/BUILDING.tv.md`](docs/BUILDING.tv.md). The three TV packages have passed CI and independent ABI/package checks; physical Samsung/LG device validation is still pending.
+
 The **Linux** build links against the system libmpv — install the runtime first (`sudo apt install libmpv2` on Ubuntu/Debian; DV tone-mapping needs a libplacebo-enabled build, which Ubuntu 24.04 ships). Detailed notes: [`docs/BUILDING.linux.md`](docs/BUILDING.linux.md).
 
 ## Roadmap
@@ -187,6 +190,7 @@ The **Linux** build links against the system libmpv — install the runtime firs
 - [x] Audio-language preference — remembered and applied across queue episodes
 - [x] Runtime HDR10+ detection — passive HEVC ST 2094-40 scan without extra fetches
 - [x] Signed, notarized & stapled macOS Apple Silicon distribution
+- [x] Samsung Tizen TV (6.0 and 10) + LG webOS 26 native players — CI-verified packages on main; physical-device validation pending
 - [ ] TMDB + OMDb metadata
 - [ ] iOS TestFlight distribution
 - [ ] Android TV Play Store listing

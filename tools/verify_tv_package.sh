@@ -24,9 +24,17 @@ else
   (
     cd "$TMP"
     ar x "$PKG"
-    tar -tzf data.tar.gz | grep 'librust_lib_zanzibarr.so' >/dev/null
-    tar -tzf data.tar.gz | grep 'libstdc++.so.6' >/dev/null
-    tar -xOf data.tar.gz --wildcards '*/librust_lib_zanzibarr.so' > engine.so
+    ENTRY="$(tar -tzf data.tar.gz | awk '/librust_lib_zanzibarr.so/{print; exit}')"
+    test -n "$ENTRY" || {
+      echo "error: Rust engine is missing from $PKG" >&2
+      exit 1
+    }
+    CPP_ENTRY="$(tar -tzf data.tar.gz | awk '/libstdc\+\+.so.6/{print; exit}')"
+    test -n "$CPP_ENTRY" || {
+      echo "error: the bundled libstdc++.so.6 runtime is missing from $PKG" >&2
+      exit 1
+    }
+    tar -xOf data.tar.gz "$ENTRY" > engine.so
   )
 fi
 
