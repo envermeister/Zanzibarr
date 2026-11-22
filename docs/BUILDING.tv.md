@@ -39,7 +39,7 @@ What the repository adds:
 Zanzibarr's mapping:
 
 - `tools/prepare_tv_workdir.sh` creates an isolated Tizen source copy. `tools/configure_tv_pubspec.py` removes media_kit/libmpv and native-only sources, then pins the Tizen plugin set.
-- The engine is built as `armv7-unknown-linux-gnueabi/release/librust_lib_zanzibarr.so` using Samsung GCC and rootstrap, then copied to `tizen/lib/` before `build tpk`.
+- The engine is built as `armv7-unknown-linux-gnueabi/release/librust_lib_zanzibarr.so` using Samsung GCC and rootstrap, then copied to `tizen/lib/` before `build tpk`. The target `libstdc++.a` reported by that GCC is placed in an archive-only native search directory. This makes both unrar's build-script and Rust `#[link]` records select the static archive regardless of rustc's link-argument order; `-static-libstdc++` alone is not sufficient with rustc's `-nodefaultlibs` link.
 - Tizen's dynamic loader can be sensitive to library search paths. `lib/engine/native_engine_loader.dart` therefore uses `AUL_ROOT_PATH/lib/librust_lib_zanzibarr.so` when available, with FRB's normal loader as fallback.
 - The CI-only certificate uses `TESTPASS123`; it is not the owner's production certificate and is never embedded in source or release notes.
 
@@ -81,9 +81,9 @@ What the repository adds:
 Zanzibarr's mapping:
 
 - `rust_builder/pubspec.yaml` declares webOS as an FFI platform.
-- `rust_builder/webos/CMakeLists.txt` publishes `rust_lib_zanzibarr_bundled_libraries` for `lib/librust_lib_zanzibarr.so`.
+- `rust_builder/webos/CMakeLists.txt` publishes `rust_lib_zanzibarr_bundled_libraries` for the engine and its matching C++ runtime under `lib/`.
 - `tools/build_webos.sh` sources the LG environment and uses NDK G++ for unrar and final linking. This avoids mixing Clang's optional `libc++` flags with the NDK's generic GNU `stdc++` linkage.
-- The native engine uses the NDK's exact `libstdc++.so.6`, bundled next to the engine with an `$ORIGIN/lib` RPATH. The LG NDK does not ship a static `libstdc++.a`, so forcing static C++ linkage is not an option. Shipping the matching runtime avoids both missing GLIBCXX symbols and accidentally selecting an older system runtime.
+- The native engine uses the NDK's exact `libstdc++.so.6`, bundled next to the engine with an `$ORIGIN` RPATH (both files are already inside `lib/`). The LG NDK does not ship a static `libstdc++.a`, so forcing static C++ linkage is not an option. Shipping the matching runtime avoids both missing GLIBCXX symbols and accidentally selecting an older system runtime. The runtime is explicitly listed in `rust_lib_zanzibarr_bundled_libraries`; copying it into the source directory alone does not install it into the IPK.
 
 ## Rust and playback architecture
 
@@ -154,7 +154,7 @@ tools/build_webos.sh
 tools/verify_tv_package.sh webos dist/webos/zanzibarr-webos26-arm.ipk
 ```
 
-The verifier extracts the engine from each TPK/IPK and checks ARM ELF, SONAME, softfp ABI, the `$ORIGIN/lib` RPATH and the presence of the matching bundled `libstdc++.so.6` runtime.
+The verifier extracts the engine from each TPK/IPK and checks ARM ELF, SONAME and softfp ABI. Tizen must have no dynamic `libstdc++` dependency. webOS must have the engine's `$ORIGIN` RPATH and the matching bundled `libstdc++.so.6` runtime.
 
 ### CI
 
