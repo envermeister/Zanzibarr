@@ -18,7 +18,7 @@ What the guide establishes:
 
 Zanzibarr's mapping:
 
-- `tizen/tizen-manifest.xml` targets the Tizen 6.0 API line; `tizen/tizen-manifest-10.0.xml` targets the 2026 line. `tools/build_tizen.sh` selects the manifest, GCC version and sysroot together.
+- `tizen/tizen-manifest.xml` targets the Tizen 6.0 API line; `tizen/tizen-manifest-10.0.xml` targets the 2026 line. `tools/build_tizen.sh` selects the manifest, GCC version and sysroot together. For 2026, the public `tizen` rootstrap (`tizen-10.0-device.core`) is used because `tv-samsung` is not publicly available; this matches flutter-tizen's own fallback logic.
 - The existing visible D-pad focus style and `PlayerKeyboardControls` are reused. No touchscreen-only interaction is required for search, settings or playback.
 - The Tizen build uses `video_player_tizen` and its Tizen Media Player implementation. It supports seek, speed, volume and audio-track enumeration/selection. Seeking is nearest-keyframe and works at 1× speed, matching the plugin's documented limitation.
 - The Tizen plugin **does not support TV emulators**, so successful packaging is not a substitute for a real Samsung TV test.
@@ -53,7 +53,7 @@ What the guide establishes:
 - The target is **webOS 26 Re:New or later**. This is not a generic older-webOS application path. Developer Mode is required for deployment.
 - Build and packaging produce an **`.ipk`** at `build/webos/{arch}/{mode}/ipk/{id}_{version}_{arch}.ipk` with debug/profile/release modes.
 - The NDK is **11.2.0**. `WEBOS_FLUTTER_NDK_ENV` points to its environment-setup script, which must be sourced before native builds. Engine artifacts are pre-cached with `flutter-webos precache`.
-- `ares >= 3.2.4` is required for packaging/deployment. Node.js 14.15.1–16.20.2 is the documented range for ares.
+- `ares >= 3.2.4` is required for packaging/deployment. The guide lists Node.js 14.15.1–16.20.2, but the current `@webos-tools/cli` has moved to **Node.js >= 20**; Zanzibarr CI therefore uses the current Node.js 24 LTS rather than the outdated range.
 - Luna Service calls are governed by ACG. Zanzibarr's raw NNTP/HTTP traffic does not require an extra Luna service or ACG group.
 - The official `video_player_webos` plugin uses the platform video plane. The Flutter surface must be transparent. This release supports at most five concurrent pipelines, does not support per-stream `setVolume`, and does not support HTTP headers. Zanzibarr's loopback range server does not need custom headers.
 
@@ -83,7 +83,7 @@ Zanzibarr's mapping:
 - `rust_builder/pubspec.yaml` declares webOS as an FFI platform.
 - `rust_builder/webos/CMakeLists.txt` publishes `rust_lib_zanzibarr_bundled_libraries` for `lib/librust_lib_zanzibarr.so`.
 - `tools/build_webos.sh` sources the LG environment and uses NDK G++ for unrar and final linking. This avoids mixing Clang's optional `libc++` flags with the NDK's generic GNU `stdc++` linkage.
-- The native engine uses `-static-libstdc++`, reducing TV GLIBCXX compatibility risk and avoiding an older bundled `libstdc++.so.6` poisoning system libraries in the same process.
+- The native engine uses the NDK's exact `libstdc++.so.6`, bundled next to the engine with an `$ORIGIN/lib` RPATH. The LG NDK does not ship a static `libstdc++.a`, so forcing static C++ linkage is not an option. Shipping the matching runtime avoids both missing GLIBCXX symbols and accidentally selecting an older system runtime.
 
 ## Rust and playback architecture
 
@@ -154,7 +154,7 @@ tools/build_webos.sh
 tools/verify_tv_package.sh webos dist/webos/zanzibarr-webos26-arm.ipk
 ```
 
-The verifier extracts the engine from each TPK/IPK and checks ARM ELF, SONAME, softfp ABI and the absence of a dynamic `libstdc++` dependency.
+The verifier extracts the engine from each TPK/IPK and checks ARM ELF, SONAME, softfp ABI, the `$ORIGIN/lib` RPATH and the presence of the matching bundled `libstdc++.so.6` runtime.
 
 ### CI
 
