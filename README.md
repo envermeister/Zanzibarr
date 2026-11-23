@@ -54,6 +54,7 @@ Zanzibarr turns Usenet into your personal streaming library. Point it at any `.n
 - **Find and remember subtitles** — OpenSubtitles search by release name and moviehash, per-language preferences, per-episode file associations and Arabic glyph fallback. External subtitles apply to the local player, not cast receivers.
 - **Your accounts and languages, remembered** — multiple switchable NNTP profiles, multiple enabled indexer profiles, and preferred audio language carried across episodes.
 - **More signal, less noise** — recent/saved search chips and passive runtime HDR10+ detection for HEVC in start-code containers such as Matroska.
+- **Native Samsung Tizen and LG webOS support** — preview packages for Tizen 6.0, Tizen 10/2026 and webOS 26 Re:New+ use the platforms' native video players and the same lazy Rust engine, with D-pad controls and shared search, queue and subtitle features. The TPKs are test-signed and the IPK is a test-development package; physical-device validation is pending.
 - **A cleaner macOS install** — the Apple Silicon package is Developer ID signed, notarized and stapled.
 
 Read the [full v2.0 release notes](https://github.com/envermeister/zanzibarr/releases/tag/v2.0).
