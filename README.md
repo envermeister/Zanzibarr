@@ -13,7 +13,7 @@
   <a href="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml"><img src="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml/badge.svg" alt="Android build"></a>
   <a href="https://github.com/envermeister/zanzibarr/releases/latest"><img src="https://img.shields.io/github/v/release/envermeister/zanzibarr?label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux%20%C2%B7%20Android%20%C2%B7%20Android%20TV%20%C2%B7%20iOS%20%C2%B7%20Tizen%20%C2%B7%20webOS-blue" alt="platforms">
-  <img src="https://img.shields.io/badge/tests-330%20Rust%20%2B%20275%20Flutter-brightgreen" alt="tests">
+  <img src="https://img.shields.io/badge/tests-332%20Rust%20%2B%20276%20Flutter-brightgreen" alt="tests">
   <a href="https://buymeacoffee.com/envermeister"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20Zanzibarr-FFDD00?logo=buy-me-a-coffee&logoColor=black" alt="Support on Buy Me a Coffee"></a>
   <a href="https://ko-fi.com/envermeister"><img src="https://img.shields.io/badge/Ko--fi-support%20Zanzibarr-F16061?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
@@ -177,7 +177,7 @@ The **Linux** build links against the system libmpv — install the runtime firs
 - [x] iOS build (unsigned `.ipa` via CI; sideload with AltStore/Sideloadly — TestFlight needs a paid developer account setup)
 - [x] Chromecast & AirPlay casting (token-gated LAN streaming straight from the engine)
 - [x] Obfuscated NZB sets (content-sniffed RAR volume ordering for hash-named posts)
-- [x] Subtitle font picker (bundled Noto Sans/Serif/Mono, remembered per title)
+- [x] Subtitle font picker (Noto-based Zanzibarr Sans/Serif/Mono with Arabic and music glyph coverage, remembered per title)
 - [x] Android TV D-pad navigation overhaul (settings & search fully remote-driven)
 - [x] Multi-file NZB picker — choose the episode inside season packs (direct videos, RAR/7z & obfuscated sets)
 - [x] Play queue — natural-order auto-play, watched badges and an Up next countdown

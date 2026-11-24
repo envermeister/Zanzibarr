@@ -42,11 +42,11 @@ void main() {
     await tester.tap(find.byTooltip('Altyazı yazı tipi'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Noto Sans'), findsOneWidget);
-    expect(find.text('Noto Serif'), findsOneWidget);
-    expect(find.text('Noto Sans Mono'), findsOneWidget);
+    expect(find.text('Zanzibarr Sans'), findsOneWidget);
+    expect(find.text('Zanzibarr Serif'), findsOneWidget);
+    expect(find.text('Zanzibarr Mono'), findsOneWidget);
 
-    await tester.tap(find.text('Noto Serif'));
+    await tester.tap(find.text('Zanzibarr Serif'));
     await tester.pumpAndSettle();
     expect(selected, 'serif');
   });
@@ -57,11 +57,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final monoItem = find.ancestor(
-      of: find.text('Noto Sans Mono'),
+      of: find.text('Zanzibarr Mono'),
       matching: find.byType(PopupMenuItem<String>),
     );
     final sansItem = find.ancestor(
-      of: find.text('Noto Sans'),
+      of: find.text('Zanzibarr Sans'),
       matching: find.byType(PopupMenuItem<String>),
     );
     expect(

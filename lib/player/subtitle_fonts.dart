@@ -23,27 +23,30 @@ class SubtitleFont {
   final String family;
 }
 
+/// Birleştirilmiş ana fontlar: Noto Latin glifleri, Arapça shaping ve DejaVu
+/// müzik sembolleri tek ailede bulunur. Android'de fontconfig olmadığı için
+/// seçilen font bütün karakterleri kendisi taşımalıdır.
 const kSubtitleFonts = <SubtitleFont>[
   SubtitleFont(
     id: 'sans',
     asset: 'assets/fonts/subtitle.ttf',
-    family: 'Noto Sans',
+    family: 'Zanzibarr Sans',
   ),
   SubtitleFont(
     id: 'serif',
     asset: 'assets/fonts/subtitle_serif.ttf',
-    family: 'Noto Serif',
+    family: 'Zanzibarr Serif',
   ),
   SubtitleFont(
     id: 'mono',
     asset: 'assets/fonts/subtitle_mono.ttf',
-    family: 'Noto Sans Mono',
+    family: 'Zanzibarr Mono',
   ),
 ];
 
-/// Seçici dışı fontconfig fallback fontları. Seçili ana fontta bulunmayan
-/// Arapça gliflerin kare yerine bu ailelerden alınmasını sağlar; kullanıcıya
-/// ayrıca bir dil/font seçtirmek gerekmez.
+/// Fontconfig bulunan platformlar için seçici dışı fallback fontları. Ana
+/// birleştirilmiş fontlar zaten Arapça ve sembolleri taşır; bu ham aileler
+/// masaüstünde ek glif kapsamı sağlar. Android bunlara güvenmez.
 const kSubtitleFallbackFonts = <SubtitleFont>[
   SubtitleFont(
     id: 'arabic_sans',
@@ -57,9 +60,9 @@ const kSubtitleFallbackFonts = <SubtitleFont>[
   ),
 ];
 
-/// Resolver'ın `sub-fonts-dir` dizinine çıkardığı tüm fontlar. Seçili ana
-/// fontlar ve onların eksik gliflerini karşılayan fallback'ler birlikte
-/// bulunmalı ki libass/fontconfig Arapça metni de doğru işleyebilsin.
+/// Resolver'ın `sub-fonts-dir` dizinine çıkardığı tüm fontlar. Birleştirilmiş
+/// ana fontlar Android'de tek başına yeterlidir; fontconfig bulunan
+/// platformlarda ham fallback aileleri de aynı dizinde bulunur.
 const kSubtitleFontAssets = <SubtitleFont>[
   ...kSubtitleFonts,
   ...kSubtitleFallbackFonts,
@@ -94,9 +97,9 @@ class AssetSubtitleFontResolver implements SubtitleFontResolver {
   Future<SubtitleFontTarget> resolve(String id) async {
     final font = subtitleFontFor(id);
     final dir = await _fontsDirectory();
-    // Seçili fontun yanında fallback'ler de her zaman bulunur. Özellikle
-    // Arapça glifler ana Noto Sans/Serif/Mono fontlarında yoktur; fontconfig
-    // bunları ancak aynı dizindeki Arapça ailelerden tamamlayabilir.
+    // Birleştirilmiş ana font Android'de sistem font sağlayıcısı olmadan da
+    // Arapça ve sembolleri gösterir. Fontconfig bulunan platformlar için ham
+    // fallback ailelerini de aynı dizine çıkarırız.
     for (final assetFont in kSubtitleFontAssets) {
       final file = File('${dir.path}/${assetFont.id}.ttf');
       // Katalog sabit ve asset'ler uygulamayla birlikte sürümlenir; dosya varsa

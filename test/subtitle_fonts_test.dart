@@ -35,6 +35,27 @@ void main() {
     }
   });
 
+  test('merged primary fonts cover issue SRT and music glyphs', () async {
+    final sample = await File('test/fixtures/arabic_music.srt').readAsString();
+    final codepoints = sample.runes.toSet().difference({0x0A, 0x0D, 0xFEFF});
+    for (final font in kSubtitleFonts) {
+      final data = await rootBundle.load(font.asset);
+      final bytes = ByteData.sublistView(data);
+      for (final codepoint in codepoints) {
+        expect(
+          _hasGlyph(bytes, codepoint),
+          isTrue,
+          reason: '${font.family} is missing U+${codepoint.toRadixString(16)}',
+        );
+      }
+      // Android has no fontconfig: the selected font itself must retain the
+      // Arabic shaping tables rather than relying on a sibling fallback file.
+      for (final tag in ['GSUB', 'GPOS', 'GDEF']) {
+        expect(_table(bytes, tag), isA<int>(), reason: '${font.family}: $tag');
+      }
+    }
+  });
+
   test('resolver extracts every selected and fallback font', () async {
     const channel = MethodChannel('plugins.flutter.io/path_provider');
     final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -47,7 +68,7 @@ void main() {
 
     final target = await AssetSubtitleFontResolver().resolve('sans');
 
-    expect(target.family, 'Noto Sans');
+    expect(target.family, 'Zanzibarr Sans');
     for (final font in kSubtitleFontAssets) {
       final file = File('${support.path}/subtitle_fonts/${font.id}.ttf');
       final data = await rootBundle.load(font.asset);

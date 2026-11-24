@@ -364,13 +364,13 @@ void main() {
     expect(controller.subtitleFont, 'serif');
     expect(backend.calls, [
       'set:sub-fonts-dir=/tmp/test-fonts',
-      'set:sub-font=Noto Serif',
+      'set:sub-font=Zanzibarr Serif',
     ]);
 
     // Bilinmeyen kimlik katalog varsayılanına (sans) düşer.
     await controller.setSubtitleFont('bozuk-font');
     expect(controller.subtitleFont, 'sans');
-    expect(backend.properties['sub-font'], 'Noto Sans');
+    expect(backend.properties['sub-font'], 'Zanzibarr Sans');
   });
 
   test('ses senkronu artı eksi beş saniyeyle sınırlı', () async {

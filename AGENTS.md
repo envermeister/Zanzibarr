@@ -75,10 +75,10 @@ Key directories:
 Verification gate (run all four, in order):
 
 ```bash
-cd rust && cargo test                      # ~330 tests (run to confirm current count)
+cd rust && cargo test                      # ~332 tests (run to confirm current count)
 cd rust && cargo clippy --all-targets -- -D warnings
 flutter analyze lib test
-flutter test                               # ~275 tests
+flutter test                               # ~276 tests
 ```
 
 Release pipeline (v1.4+):
@@ -102,6 +102,8 @@ Release pipeline (v1.4+):
 Debug hooks (developer-only, env vars): `ZANZIBARR_DEBUG_NZB=/path/to.nzb` (open NZB directly at startup), `ZANZIBARR_DEBUG_PROBE=1` (dump video params + audio tracks to stdout).
 
 ## 6. Current state (updated 2026-11-24)
+
+**Issue #7 and #8 fixes on unreleased main (2026-11-24):** RAR QuickOpen/SERVICE payload truncation no longer invalidates complete media parts (`af209af`, `rust/src/engine/rar.rs`); actual FILE truncation and split-chain validation remain strict, with regression coverage. Android external SRT now uses deterministic merged **Zanzibarr Sans/Serif/Mono** fonts (`tools/build_subtitle_fonts.py` + `tools/font_sources/`): the Arabic base glyph IDs and GSUB/GPOS/GDEF tables are preserved byte-for-byte, Noto Latin glyphs and DejaVu `♪`/`♫`/`♬`/`♩` are appended, and each primary font works without Android fontconfig. `libassAndroidFontName` and the picker/pubspec families match the new internal names; OFL and DejaVu licenses are packaged. The issue SRT fixture covers every codepoint and shaping tag, real mpv/libass renders show shaped Arabic and the music symbol, and full gate is **332 Rust + 276 Flutter + 9 skips**, clippy/analyze clean. Physical Android SRT and live-provider issue #7 playback confirmation remain pending.
 
 **Local cleanup completed (2026-11-23):** at the owner's request, removed the regenerable `build/`, `.dart_tool/`, local `dist/tv-ci/` package copies (all three remain on the v2.0 release), old Reddit/early-release-note drafts, the remaining temporary CI log, the two Zanzibarr Docker containers, six Zanzibarr cache volumes and the task-pulled `ubuntu:22.04` image. Docker reported approximately **3.7 GB** of container/virtual storage removed; macOS availability increased from **7.7 GiB to 11 GiB** after reclamation. The repo is ~206 MB, `dist/` is 16 KB and contains only the current `reddit-main-post-v2.0.md` and `reddit-v2.0-comment.md` owner-post drafts. Source, fixtures, keychain entries, the remote 11-asset release and unrelated global development toolchains were preserved. The 1.5 GB DerivedData directory belongs to **Usetopia** and was deliberately untouched, as were unrelated Docker images, volumes and build caches. No tests were rerun for this cleanup.
 
@@ -187,6 +189,8 @@ Gate after the change: 223 Rust tests, clippy clean, flutter analyze clean, 152 
 
 ## 7. Known issues / watch list
 
+- *Issue #7 (RAR QuickOpen/SERVICE truncation):* fixed on unreleased main in `af209af`. A truncated service payload no longer invalidates complete FILE parts; FILE and split-chain checks remain strict. The reporter's exact NZB/live NNTP playback has **not** been verified — leave open for on-device confirmation.
+- *Issue #8 (Android SRT Arabic/music glyphs):* fixed on unreleased main with deterministic merged primary fonts and issue-SRT coverage. Offline glyph/table checks and real mpv/libass renders pass, but the exact Android device/fontconfig-less playback path still needs the reporter's confirmation. Leave open for on-device verification.
 - *Reddit dark-mode confirmation contrast (2026-11-24):* a Pixel 10 Pro user reports that confirmation/snackbar text after an indexer test or settings save is unreadable in dark mode and asks for white text. This is a new UI bug report, **not yet reproduced or fixed**. Keep an explicitly light confirmation text color on the dark theme and verify both actions on-device before marking it fixed.
 - *Reddit Easynews + NZBHydra2 playback failure (2026-11-24):* a mobile user reports that every selected health-Good title fails to play after 15–20 movies. Health is only sampled article availability/PAR2 capacity, not an archive-layout or codec guarantee. Requested one failing NZB/release name, exact error, phone/Android version and failure stage via GitHub issues; root cause unknown until a sample arrives. Do not treat this as reproduced or fixed.
 - *Native Tizen/webOS device validation:* CI run `45067947147` and independent package/ABI checks are green, but no physical Samsung or LG TV has installed or played these builds. Validate Tizen 6, the separate Tizen 10/2026 package and webOS 26 with real NNTP accounts: installation, native player startup, seek/pause network stop, queue transition, subtitle overlay, remote focus, audio track/volume (Tizen) and system volume (webOS), plus hardware codec/HDR behavior. CI uses test signing only; production Samsung/LG signing and store submission are separate steps. Do not call these device checks complete from CI evidence.
@@ -282,6 +286,8 @@ Done since v1.0: Newznab indexer search (v1.1-era), RAR4/RAR5 STORE, split 7z ST
 - **2026-11-24 — New v2.0 Reddit thread draft with Usetopia introduction.** At the owner's request, created `dist/reddit-zanzibarr-v2.0-new-thread.md` (three title options plus a recommended title/body). It recalls the original stream-without-downloading Zanzibarr announcement, highlights v2.0 multi-source search/health/queue/subtitle/account features and the Tizen 6/10 + webOS 26 native previews with their test-signing/device-validation caveats, then introduces Usetopia as a separate modular local/HTTP/library/catalog/subtitle/optional-Usenet media center. Usetopia is explicitly described as in development with no public packages. Only its README was read for accuracy; the Usetopia worktree was not modified. The 1,011-word Reddit draft is gitignored and ready for the owner to post manually.
 
 - **2026-11-24 — Individual Reddit replies prepared.** Created `dist/reddit-comment-replies-v2.0.md` with five paste-ready English replies covering Arabic subtitle thanks, season-pack contributor thanks, Samsung/Pixel feedback plus dark-mode contrast and a recent-upload TV-guide suggestion, Prowlarr/Althub/NewsHosting success, and an Easynews + NZBHydra2 all-titles-fail playback report. The playback reply asks for one failing NZB and exact error details without credentials; the dark-mode and playback reports are watch-list items, not claimed fixes. The TV-guide idea is roadmap #19 and explicitly uses upload dates, not broadcast schedules.
+
+- **2026-11-24 — Issue #7 RAR QuickOpen and issue #8 Android SRT fixes.** #7 root cause: `parse_volume` treated truncated QuickOpen/recovery SERVICE data as fatal media truncation even when every FILE part was complete. It now stops cleanly at an incomplete SERVICE tail only; FILE payload and split-chain checks remain strict. Two tests prove a complete two-volume media chain and rejection of actual missing data (`af209af`). #8 root cause: Android libass has no system font provider/fontconfig, so separate fallback TTFs cannot provide per-glyph fallback. Added `tools/build_subtitle_fonts.py` and `tools/font_sources/` to merge Arabic-base shaping with Noto Latin and DejaVu music glyphs while preserving base glyph IDs and GSUB/GPOS/GDEF bytes; outputs are deterministic `Zanzibarr Sans/Serif/Mono` fonts with matching Flutter/mpv family names and packaged licenses. Added `test/fixtures/arabic_music.srt` and full codepoint/table tests. Verified repeat-build hashes, shaping-table byte equality and real mpv/libass renders of shaped Arabic + `♪` + Latin. Full gate: **332 Rust + 276 Flutter + 9 skips**, clippy/analyze clean. Exact Android device and live-provider playback confirmation remain pending.
 
 ### Key technical decisions (the *why* — don't relitigate without cause)
 

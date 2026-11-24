@@ -162,8 +162,8 @@ The verifier extracts the engine from each TPK/IPK and checks ARM ELF, SONAME an
 
 ## Verification status
 
-- Rust: 330 tests plus clippy.
-- Flutter: 275 tests plus analysis, including TV audio preference, launcher, controls, fake native stream opening, queue transition and platform configuration tests.
+- Rust: 332 tests plus clippy.
+- Flutter: 276 tests plus analysis, including TV audio preference, launcher, controls, fake native stream opening, queue transition and platform configuration tests.
 - Both isolated TV dependency profiles and both SDK analyzers pass.
 - The Tizen 6.0/GCC 9.2 and Tizen 10.0/GCC 14.2 engines were also built independently from CI. `readelf` confirmed ELF32/ARM, soft-float ABI and the expected SONAME, with no dynamic `libstdc++` dependency in either engine.
 - [CI run 45067947147](https://github.com/envermeister/zanzibarr/actions/runs/45067947147) produced and verified all three packages. The downloaded Tizen 6.0 TPK, Tizen 10.0 TPK and webOS IPK were independently extracted and verified again with `tools/verify_tv_package.sh`.
