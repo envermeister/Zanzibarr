@@ -684,7 +684,17 @@ fn parse_volume<R: Read + Seek>(
         };
 
         match block {
-            Block::Main | Block::Service => {
+            Block::Main => {
+                parser.skip(data_size)?;
+            }
+            Block::Service => {
+                if data_size > parser.remaining() {
+                    // QuickOpen/recovery gibi servis verileri medya akışının
+                    // parçası değildir. Cilt sonundaki eksik yardımcı veri,
+                    // önceki FILE parçalarını geçersiz kılmasın; FILE verisi
+                    // ve split zinciri aşağıda aynı katılıkla doğrulanır.
+                    break;
+                }
                 parser.skip(data_size)?;
             }
             Block::Encryption(encryption) => {
@@ -1758,6 +1768,17 @@ mod tests {
         block(HEAD_TYPE_FILE, flags, &extra, spec.data, &body)
     }
 
+    fn quick_open_block(data: &[u8]) -> Vec<u8> {
+        let mut body = vint(0); // file flags
+        body.extend(vint(data.len() as u64));
+        body.extend(vint(0)); // attributes
+        body.extend(vint(0)); // compression info: STORE
+        body.extend(vint(1)); // host os: unix
+        body.extend(vint(2));
+        body.extend_from_slice(b"QO");
+        block(HEAD_TYPE_SERVICE, 0, &[], data, &body)
+    }
+
     fn volume(blocks: &[Vec<u8>]) -> Vec<u8> {
         let mut out = RAR5_SIGNATURE.to_vec();
         out.extend(main_block());
@@ -2269,6 +2290,52 @@ mod tests {
         let len = bytes.len() as u64;
         let map = build_fragment_map(&mut Cursor::new(bytes), &[(0, len)], None).unwrap();
         assert_eq!(map.total_len, 4);
+    }
+
+    #[test]
+    fn quick_open_kuyrugu_tam_medya_parcalarini_engellemez() {
+        let first_data = [0x11; 100];
+        let last_data = [0x22; 80];
+        let total = (first_data.len() + last_data.len()) as u64;
+        let mut first_spec = store_spec("film.mkv", total, &first_data);
+        first_spec.split_after = true;
+        let mut last_spec = store_spec("film.mkv", total, &last_data);
+        last_spec.split_before = true;
+
+        let mut first = RAR5_SIGNATURE.to_vec();
+        first.extend(main_block());
+        first.extend(file_block(&first_spec));
+        first.extend(quick_open_block(&[1, 2, 3, 4]));
+        // QuickOpen başlığı CRC'siyle birlikte tam, yardımcı verisinin yalnız
+        // son iki baytı ciltte yok. Medya parçası baştan sona mevcut.
+        first.truncate(first.len() - 2);
+        let second = volume(&[file_block(&last_spec)]);
+        let volumes = vec![first.clone(), second];
+        let bytes = concat(&volumes);
+        let map = build_fragment_map(&mut Cursor::new(bytes), &layout(&volumes), None).unwrap();
+        assert_eq!(map.total_len, total);
+        assert_eq!(map.fragments.len(), 2);
+
+        // Devam cildi gerçekten yoksa aynı tolerans eksik split zincirini
+        // oynatılabilir göstermemeli.
+        let len = first.len() as u64;
+        assert!(matches!(
+            build_fragment_map(&mut Cursor::new(first), &[(0, len)], None),
+            Err(RarError::InvalidLayout(_))
+        ));
+    }
+
+    #[test]
+    fn eksik_dosya_verisi_hala_mid_block_hatasi_verir() {
+        let mut bytes = RAR5_SIGNATURE.to_vec();
+        bytes.extend(main_block());
+        bytes.extend(file_block(&store_spec("film.mkv", 4, &[9, 9, 9, 9])));
+        bytes.truncate(bytes.len() - 1);
+        let len = bytes.len() as u64;
+        assert!(matches!(
+            build_fragment_map(&mut Cursor::new(bytes), &[(0, len)], None),
+            Err(RarError::Header(message)) if message.contains("volume ended mid-block")
+        ));
     }
 
     #[test]
