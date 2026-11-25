@@ -317,11 +317,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         // Desteklenen altyazıları libmpv'nin yerel video yüzeyinde işler;
         // Flutter metin katmanına bağımlı kalmaz.
         libass: true,
-        // Android'de fontconfig olmadığından libass sistem fontlarına
-        // erişemez; erişemediğinde metin altyazıları sessizce görünmez
-        // olur. media_kit birleştirilmiş asset'i cache'e çıkarıp sub-fonts-dir /
-        // sub-font olarak mpv'ye verir. Aile adı fontun iç adıyla
-        // birebir eşleşmelidir ("Zanzibarr Sans").
+        // Android libass uses fontconfig for system fallback. The merged
+        // bundled primary keeps Arabic shaping and music glyphs deterministic
+        // even on devices whose system fonts lack them. media_kit extracts it
+        // and passes sub-fonts-dir/sub-font to mpv; the family name must match
+        // the font's internal name ("Zanzibarr Sans").
         libassAndroidFont: 'assets/fonts/subtitle.ttf',
         libassAndroidFontName: 'Zanzibarr Sans',
       ),

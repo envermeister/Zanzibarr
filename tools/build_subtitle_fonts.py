@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Build Android-safe subtitle fonts with Arabic shaping and Latin/symbol glyphs.
 
-Android's libass build has no system font provider/fontconfig, so a second
-fallback file cannot fill missing glyphs. These merged fonts keep every glyph
-ID from the Arabic base (and therefore its GSUB/GPOS/GDEF shaping tables) and
-append the Latin/symbol glyphs after them. Run from the repository root with a
+Android fontconfig supplements system fonts, but OEM coverage varies. These
+merged fonts keep Arabic/music coverage deterministic without depending on a
+second fallback file. They preserve every glyph ID from the Arabic base (and
+therefore its GSUB/GPOS/GDEF shaping tables) and append the Latin/symbol glyphs
+after them. Run from the repository root with a
 Python environment containing fontTools:
 
     python3 tools/build_subtitle_fonts.py

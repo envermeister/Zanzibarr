@@ -99,6 +99,8 @@ flutter:
     - assets/fonts/subtitle_arabic_serif.ttf
     - assets/fonts/OFL.txt
     - assets/fonts/DejaVu-LICENSE.txt
+    - assets/licenses/fontconfig.txt
+    - assets/licenses/libxml2.txt
 
   # Altyazı font kataloğu (lib/player/subtitle_fonts.dart): aynı TTF'ler hem
   # Flutter UI önizlemesi (menüde kendi fontuyla gösterim) hem de libmpv

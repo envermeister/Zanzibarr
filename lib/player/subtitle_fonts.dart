@@ -4,8 +4,9 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 
 /// Altyazı font kataloğu. TTF'ler `assets/fonts/` altında paketlenir (OFL);
-/// libmpv/fontconfig'e verilmeden önce uygulama destek dizinine çıkarılır
-/// (Android'de fontconfig yok; tüm platformlarda aynı yol kullanılır).
+/// libmpv/fontconfig'e verilmeden önce uygulama destek dizinine çıkarılır.
+/// Android fontconfig sistem fallback'i sağlar; birleştirilmiş ana fontlar
+/// eksik sistem gliflerinden bağımsız deterministik kapsama sunar.
 class SubtitleFont {
   const SubtitleFont({
     required this.id,
@@ -24,8 +25,8 @@ class SubtitleFont {
 }
 
 /// Birleştirilmiş ana fontlar: Noto Latin glifleri, Arapça shaping ve DejaVu
-/// müzik sembolleri tek ailede bulunur. Android'de fontconfig olmadığı için
-/// seçilen font bütün karakterleri kendisi taşımalıdır.
+/// müzik sembolleri tek ailede bulunur. Android fontconfig diğer yazılar için
+/// sistem fallback'i sağlarken bunlar Arapça/sembol kapsamını garanti eder.
 const kSubtitleFonts = <SubtitleFont>[
   SubtitleFont(
     id: 'sans',
@@ -44,9 +45,9 @@ const kSubtitleFonts = <SubtitleFont>[
   ),
 ];
 
-/// Fontconfig bulunan platformlar için seçici dışı fallback fontları. Ana
-/// birleştirilmiş fontlar zaten Arapça ve sembolleri taşır; bu ham aileler
-/// masaüstünde ek glif kapsamı sağlar. Android bunlara güvenmez.
+/// Seçici dışı ek fontlar. Ana birleştirilmiş fontlar Arapça ve sembolleri
+/// zaten taşır; ham Arapça aileler masaüstünde ek kapsama sağlar. Android
+/// fontconfig ayrıca sistem fontlarından glif tamamlayabilir.
 const kSubtitleFallbackFonts = <SubtitleFont>[
   SubtitleFont(
     id: 'arabic_sans',
@@ -61,8 +62,8 @@ const kSubtitleFallbackFonts = <SubtitleFont>[
 ];
 
 /// Resolver'ın `sub-fonts-dir` dizinine çıkardığı tüm fontlar. Birleştirilmiş
-/// ana fontlar Android'de tek başına yeterlidir; fontconfig bulunan
-/// platformlarda ham fallback aileleri de aynı dizinde bulunur.
+/// ana fontlar Android'de Arapça/sembolleri garanti eder; ham fallback
+/// aileleri fontconfig bulunan platformlarda ek kapsama sağlar.
 const kSubtitleFontAssets = <SubtitleFont>[
   ...kSubtitleFonts,
   ...kSubtitleFallbackFonts,
@@ -97,9 +98,9 @@ class AssetSubtitleFontResolver implements SubtitleFontResolver {
   Future<SubtitleFontTarget> resolve(String id) async {
     final font = subtitleFontFor(id);
     final dir = await _fontsDirectory();
-    // Birleştirilmiş ana font Android'de sistem font sağlayıcısı olmadan da
-    // Arapça ve sembolleri gösterir. Fontconfig bulunan platformlar için ham
-    // fallback ailelerini de aynı dizine çıkarırız.
+    // The merged primary guarantees Arabic/music coverage on Android;
+    // fontconfig can supplement it with system fonts. Raw fallback families
+    // are also extracted for platforms that use them directly.
     for (final assetFont in kSubtitleFontAssets) {
       final file = File('${dir.path}/${assetFont.id}.ttf');
       // Katalog sabit ve asset'ler uygulamayla birlikte sürümlenir; dosya varsa

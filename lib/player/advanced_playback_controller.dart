@@ -960,9 +960,9 @@ class AdvancedPlaybackController {
   }
 
   /// Altyazı fontunu katalog kimliğiyle değiştirir. Font TTF'si destek
-  /// dizinine çıkarılır ve `sub-fonts-dir` + `sub-font` birlikte verilir —
-  /// Android'de fontconfig olmadığından yalnız `sub-font` yazmak yetersizdir.
-  /// ASS stillerini ezmez; düz metin altyazılara uygulanır.
+  /// dizinine çıkarılır ve `sub-fonts-dir` + `sub-font` birlikte verilir.
+  /// Android fontconfig sistem fallback'i ekler; paketli fontlar eksik
+  /// glifleri de garanti eder. ASS stillerini ezmez; düz metne uygulanır.
   Future<void> setSubtitleFont(String id) async {
     final font = subtitleFontFor(id);
     final target = await _subtitleFontResolver.resolve(font.id);
