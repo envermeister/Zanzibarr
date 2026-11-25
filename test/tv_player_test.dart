@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart'
@@ -89,8 +90,12 @@ void main() {
       TvPlatform platform = TvPlatform.tizen,
       String? entryKey,
       String? audioLanguage,
+      PlaybackDefaults? defaults,
     }) async {
       final store = MediaPreferencesStore(storage: preferences);
+      if (defaults != null) {
+        await store.savePlaybackDefaults(defaults);
+      }
       if (audioLanguage != null) {
         final value = MediaPreferences.defaults().copyWithAudioLanguage(
           audioLanguage,
@@ -146,6 +151,38 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(seconds: 2));
     });
+
+    testWidgets('low memory caps connections and global seek step is applied', (
+      tester,
+    ) async {
+      await pumpPlayer(
+        tester,
+        entryKey: 'direct:e1',
+        defaults: const PlaybackDefaults(lowMemory: true, seekStepSeconds: 5),
+      );
+
+      expect(stream.configs.single.maxConnections, 2);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(video.seekTargets.last, const Duration(seconds: 5));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets(
+      'native TV keeps the legacy 10 second seek without a saved default',
+      (tester) async {
+        await pumpPlayer(tester, entryKey: 'direct:e1');
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+        expect(video.seekTargets.last, const Duration(seconds: 10));
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 2));
+      },
+    );
 
     testWidgets('completed episode advances with the correct queue key', (
       tester,
@@ -239,6 +276,7 @@ class _MemoryPreferenceStorage implements PlayerPreferenceStorage {
 
 class _FakeStreamBackend implements TvStreamBackend {
   final beganKeys = <String?>[];
+  final configs = <ProviderConfigDto>[];
   final stoppedIds = <BigInt>[];
   var _nextSession = 1;
 
@@ -267,6 +305,7 @@ class _FakeStreamBackend implements TvStreamBackend {
     String? entryKey,
   }) async {
     beganKeys.add(entryKey);
+    configs.add(config);
     return BigInt.from(_nextSession++);
   }
 
@@ -291,6 +330,7 @@ class _FakeStreamBackend implements TvStreamBackend {
 class _FakeVideoPlatform extends platform_interface.VideoPlayerPlatform {
   bool audioSupported = true;
   final selectedAudioTrackIds = <int, String>{};
+  final seekTargets = <Duration>[];
   final _events = <int, StreamController<platform_interface.VideoEvent>>{};
   var _nextId = 1;
 
@@ -357,7 +397,9 @@ class _FakeVideoPlatform extends platform_interface.VideoPlayerPlatform {
   Future<void> setPlaybackSpeed(int playerId, double speed) async {}
 
   @override
-  Future<void> seekTo(int playerId, Duration position) async {}
+  Future<void> seekTo(int playerId, Duration position) async {
+    seekTargets.add(position);
+  }
 
   @override
   Future<Duration> getPosition(int playerId) async => Duration.zero;

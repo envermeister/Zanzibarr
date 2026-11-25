@@ -302,6 +302,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// Bu bölüm açılışında kalıcı ses dili tercihi uygulanmaya çalışıldı mı?
   /// Her açılışta sıfırlanır (bölüm/bölüm yeniden uygulanır).
   bool _audioPreferenceApplied = false;
+  // Low-memory mode: smaller NNTP/mpv buffers and no scrub thumbnails.
+  bool _lowMemoryMode = false;
   // Video sığdırma kipi: false=contain (oran korunur), true=cover (doldur).
   bool _videoFill = false;
 
@@ -525,7 +527,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         port: settings.port,
         username: settings.username,
         password: settings.password,
-        maxConnections: settings.maxConnections,
+        maxConnections: _lowMemoryMode
+            ? math.min(settings.maxConnections, 2)
+            : settings.maxConnections,
       ),
       nzbPath: widget.nzbPath,
       entryKey: entryKey,
@@ -1408,6 +1412,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _loadPreferences() async {
+    try {
+      _lowMemoryMode =
+          (await _preferenceStore.loadPlaybackDefaults()).lowMemory;
+    } catch (_) {
+      // A storage failure retains the normal performance profile.
+    }
     final preferences = await _preferenceStore.load(widget.nzbPath);
     _preferences = preferences;
     _canvasCommitted = CanvasCrop(
@@ -1445,6 +1455,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _applyPreferencesToPlayer() async {
+    await _tryNativePreference(
+      () => _playback.setLowMemoryBuffering(_lowMemoryMode),
+    );
     await _tryNativePreference(
       () => _playback.setVideoPreset(
         _videoPresetFromName(_preferences.videoPreset),
@@ -2548,6 +2561,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _queuePreview(Duration target) {
+    if (_lowMemoryMode) {
+      _previewDismissTimer?.cancel();
+      _previewDebounce?.cancel();
+      _queuedPreviewTarget = null;
+      if (mounted) setState(() => _previewImage = null);
+      return;
+    }
     _previewDismissTimer?.cancel();
     final bucket = target.inSeconds ~/ 10;
     final cached = _thumbnailCache.remove(bucket);
@@ -2821,7 +2841,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         port: settings.port,
         username: settings.username,
         password: settings.password,
-        maxConnections: settings.maxConnections,
+        maxConnections: _lowMemoryMode
+            ? math.min(settings.maxConnections, 2)
+            : settings.maxConnections,
       ),
       nzbPath: widget.nzbPath,
     );

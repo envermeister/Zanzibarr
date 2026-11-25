@@ -21,6 +21,20 @@ class AppLocalizationsKo extends AppLocalizations {
   String get appSectionSubtitle => '언어 및 테마 설정은 이 기기에 저장됩니다.';
 
   @override
+  String get playbackSectionTitle => 'Playback';
+
+  @override
+  String get playbackSectionSubtitle =>
+      'App-wide defaults for new titles. A title\'s own settings take priority. On TV, text fields open the keyboard only with OK.';
+
+  @override
+  String get playbackLowMemoryTitle => 'Low memory mode';
+
+  @override
+  String get playbackLowMemorySubtitle =>
+      'For 2 GB devices: caps streaming at 2 connections, shrinks segment caches and buffers, and disables thumbnails.';
+
+  @override
   String get languageLabel => '언어';
 
   @override

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../player/subtitle_fonts.dart';
 import '../src/rust/api/search.dart';
 import '../tv_focus.dart';
 import 'indexer_settings.dart';
@@ -586,6 +587,164 @@ class _SettingsScreenState extends State<SettingsScreen>
     return null;
   }
 
+  Widget _buildPlaybackSection(
+    BuildContext context,
+    UiPreferencesController preferences,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final defaults = preferences.playbackDefaults;
+    final videoPreset = defaults.videoPreset == 'auto'
+        ? 'natural'
+        : defaults.videoPreset;
+    final audioPreset = defaults.audioPreset == 'auto'
+        ? 'balanced'
+        : defaults.audioPreset;
+    final seekOptions = <int>{1, 5, 10, 30, defaults.seekStepSeconds}.toList()
+      ..sort();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.playbackSectionTitle,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.35,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          l10n.playbackSectionSubtitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45),
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 24),
+        _SettingsCard(
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.playbackLowMemoryTitle),
+              subtitle: Text(l10n.playbackLowMemorySubtitle),
+              value: defaults.lowMemory,
+              onChanged: (enabled) {
+                preferences.setPlaybackDefaults(
+                  preferences.playbackDefaults.copyWith(lowMemory: enabled),
+                );
+                setState(() {});
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              initialValue: defaults.seekStepSeconds,
+              decoration: InputDecoration(
+                labelText: l10n.seekStepLabel,
+                prefixIcon: const Icon(Icons.fast_forward_rounded, size: 19),
+              ),
+              items: [
+                for (final seconds in seekOptions)
+                  DropdownMenuItem(value: seconds, child: Text('$seconds')),
+              ],
+              onChanged: (seconds) {
+                if (seconds != null) {
+                  preferences.setPlaybackDefaults(
+                    preferences.playbackDefaults.copyWith(
+                      seekStepSeconds: seconds,
+                    ),
+                  );
+                  setState(() {});
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: videoPreset,
+              decoration: InputDecoration(
+                labelText: l10n.videoPresetLabel,
+                prefixIcon: const Icon(Icons.tune_rounded, size: 19),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'natural',
+                  child: Text(l10n.presetNatural),
+                ),
+                DropdownMenuItem(
+                  value: 'cinema',
+                  child: Text(l10n.presetCinema),
+                ),
+                DropdownMenuItem(
+                  value: 'vivid',
+                  child: Text(l10n.presetVivid),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  preferences.setPlaybackDefaults(
+                    preferences.playbackDefaults.copyWith(videoPreset: value),
+                  );
+                  setState(() {});
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: audioPreset,
+              decoration: InputDecoration(
+                labelText: l10n.audioPresetLabel,
+                prefixIcon: const Icon(Icons.graphic_eq_rounded, size: 19),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'balanced',
+                  child: Text(l10n.presetBalanced),
+                ),
+                DropdownMenuItem(
+                  value: 'dialogue',
+                  child: Text(l10n.presetDialogue),
+                ),
+                DropdownMenuItem(
+                  value: 'night',
+                  child: Text(l10n.presetNight),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  preferences.setPlaybackDefaults(
+                    preferences.playbackDefaults.copyWith(audioPreset: value),
+                  );
+                  setState(() {});
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: defaults.subtitleFont,
+              decoration: InputDecoration(
+                labelText: l10n.subtitleFont,
+                prefixIcon: const Icon(Icons.font_download_outlined, size: 19),
+              ),
+              items: [
+                for (final font in kSubtitleFonts)
+                  DropdownMenuItem(
+                    value: font.id,
+                    child: Text(font.family),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  preferences.setPlaybackDefaults(
+                    preferences.playbackDefaults.copyWith(subtitleFont: value),
+                  );
+                  setState(() {});
+                }
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   /// Ayarlar ekranındaki OpenSubtitles bölümü: kök adres, API anahtarı,
   /// kullanıcı adı/parola (indirme kotası için opsiyonel hesap) ve kaydet
   /// düğmesi. Indexer bölümüyle aynı D-pad kolaylaştırma desenini taşır.
@@ -621,7 +780,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             children: [
               _SettingsCard(
                 children: [
-                  TextFormField(
+                  TvDpadTextField(
                     controller: _osUrlController,
                     focusNode: _osUrlFocusNode,
                     decoration: InputDecoration(
@@ -641,7 +800,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: TextFormField(
+                        child: TvDpadTextField(
                           controller: _osApiKeyController,
                           focusNode: _osApiKeyFocusNode,
                           obscureText: _obscureOsApiKey,
@@ -673,7 +832,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
+                  TvDpadTextField(
                     controller: _osUsernameController,
                     focusNode: _osUsernameFocusNode,
                     enableSuggestions: false,
@@ -692,7 +851,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: TextFormField(
+                        child: TvDpadTextField(
                           controller: _osPasswordController,
                           focusNode: _osPasswordFocusNode,
                           obscureText: _obscureOsPassword,
@@ -860,7 +1019,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     return null;
   }
 
-  Widget _portField() => TextFormField(
+  Widget _portField() => TvDpadTextField(
     controller: _portController,
     focusNode: _portFocusNode,
     decoration: InputDecoration(
@@ -877,7 +1036,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     ),
   );
 
-  Widget _connectionField() => TextFormField(
+  Widget _connectionField() => TvDpadTextField(
     controller: _maxConnectionsController,
     focusNode: _maxConnectionsFocusNode,
     decoration: InputDecoration(
@@ -1055,6 +1214,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                         ),
                         const SizedBox(height: 14),
                       ],
+                      if (widget.uiPreferences case final prefs?) ...[
+                        _buildPlaybackSection(context, prefs),
+                        const SizedBox(height: 14),
+                      ],
                       Text(
                         l10n.nntpSectionTitle,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -1141,7 +1304,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                 ),
                           ),
                           const SizedBox(height: 12),
-                          TextFormField(
+                          TvDpadTextField(
                             controller: _providerLabelController,
                             focusNode: _providerLabelFocusNode,
                             decoration: InputDecoration(
@@ -1159,7 +1322,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       const SizedBox(height: 14),
                       _SettingsCard(
                         children: [
-                          TextFormField(
+                          TvDpadTextField(
                             controller: _hostController,
                             focusNode: _hostFocusNode,
                             decoration: InputDecoration(
@@ -1199,7 +1362,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       const SizedBox(height: 14),
                       _SettingsCard(
                         children: [
-                          TextFormField(
+                          TvDpadTextField(
                             controller: _usernameController,
                             focusNode: _usernameFocusNode,
                             decoration: InputDecoration(
@@ -1225,7 +1388,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Expanded(
-                                child: TextFormField(
+                                child: TvDpadTextField(
                                   controller: _passwordController,
                                   focusNode: _passwordFocusNode,
                                   obscureText: _obscurePassword,
@@ -1365,7 +1528,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                   ],
                                 ),
                                 const SizedBox(height: 12),
-                                TextFormField(
+                                TvDpadTextField(
                                   controller: _indexerLabelController,
                                   focusNode: _indexerLabelFocusNode,
                                   decoration: InputDecoration(
@@ -1401,7 +1564,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                             const SizedBox(height: 14),
                             _SettingsCard(
                               children: [
-                                TextFormField(
+                                TvDpadTextField(
                                   controller: _indexerUrlController,
                                   focusNode: _indexerUrlFocusNode,
                                   decoration: InputDecoration(
@@ -1425,7 +1588,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Expanded(
-                                      child: TextFormField(
+                                      child: TvDpadTextField(
                                         controller: _indexerApiKeyController,
                                         focusNode: _indexerApiKeyFocusNode,
                                         obscureText: _obscureApiKey,

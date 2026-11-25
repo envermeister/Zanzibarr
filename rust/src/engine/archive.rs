@@ -16,7 +16,7 @@ use tokio::io::AsyncWrite;
 use tokio::sync::watch;
 
 use super::nntp::{NntpPool, TlsNntpConnector};
-use super::nntp_source::{NntpByteSource, ARCHIVE_PREFETCH_DEPTH};
+use super::nntp_source::NntpByteSource;
 use super::nzb::NzbFile;
 use super::server::RangeSource;
 
@@ -247,6 +247,9 @@ impl NntpVolumeSet {
         // onlarca saniye bekletirdi; sınır sayesinde sağlayıcıya aynı anda en
         // fazla BOOTSTRAP_CONCURRENCY yeni istek gider.
         let volume_cancellation = cancellation.clone();
+        let cache_segments = super::nntp_source::archive_cache_segments_for(pool.max_connections());
+        let prefetch_depth = super::nntp_source::archive_prefetch_depth_for(pool.max_connections());
+        let max_cache_bytes = (pool.max_connections() <= 2).then_some(2 * 1024 * 1024);
         let volumes = bootstrap_bounded(files, BOOTSTRAP_CONCURRENCY, cancellation, move |file| {
             let pool = Arc::clone(&pool);
             let volume_cancellation = volume_cancellation.clone();
@@ -254,9 +257,10 @@ impl NntpVolumeSet {
                 let source = NntpByteSource::with_options(
                     pool,
                     &file,
-                    ARCHIVE_VOLUME_CACHE_SEGMENTS,
-                    ARCHIVE_PREFETCH_DEPTH,
+                    cache_segments,
+                    prefetch_depth,
                     Some(volume_cancellation),
+                    max_cache_bytes,
                 )
                 .await
                 .map_err(VolumeSetError::Io)?;

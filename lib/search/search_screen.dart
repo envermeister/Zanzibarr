@@ -161,6 +161,7 @@ class _SearchScreenState extends State<SearchScreen> {
   /// Gecikmiş eski tarama adımlarının yeni sonuçlara yazmasını önlemek
   /// için tarama kuşağı: yeni arama/temizleme bunu artırır.
   int _healthGeneration = 0;
+  bool _lowMemoryMode = false;
 
   /// indeks → ön kontrol durumu (null = sırası gelmedi).
   final Map<int, _HealthState> _healthStates = {};
@@ -268,6 +269,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _healthGeneration++;
     _queryController.dispose();
     _queryFocusNode.dispose();
     _firstResultFocusNode.dispose();
@@ -295,6 +297,7 @@ class _SearchScreenState extends State<SearchScreen> {
     } catch (_) {
       // Sağlayıcı ayarı okunamazsa ön kontrol sessizce kapalı kalır.
     }
+    _lowMemoryMode = widget.uiPreferences?.playbackDefaults.lowMemory ?? false;
     if (!mounted) return;
     setState(() {
       _indexerProfiles = profiles;
@@ -427,7 +430,10 @@ class _SearchScreenState extends State<SearchScreen> {
       maxConnections: _providerSettings.maxConnections,
     );
     var consecutiveFailures = 0;
-    for (var index = 0; index < items.length; index++) {
+    final itemLimit = _lowMemoryMode
+        ? (items.length < 10 ? items.length : 10)
+        : items.length;
+    for (var index = 0; index < itemLimit; index++) {
       if (!mounted || generation != _healthGeneration) return;
       if (_healthStates[index] is _HealthDone ||
           _healthStates[index] is _HealthFailed) {
@@ -460,6 +466,10 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _downloadAndPlay(int index) async {
     if (_busyIndex != null) return;
     final item = _items![index];
+    // Oynatma başlarken sağlık taraması CPU/ağ için yarışmasın: mevcut
+    // çağrı sonuçsuz kapanır, kalan NZB/STAT adımları hiç başlamaz.
+    _healthGeneration++;
+    _healthStates.clear();
     setState(() => _busyIndex = index);
     try {
       // Ön kontrol aynı NZB'yi zaten indirdiyse yol yeniden kullanılır.
@@ -564,13 +574,13 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
+                  child: TvDpadTextField(
                     controller: _queryController,
                     focusNode: _queryFocusNode,
                     // TV kumandasında D-pad gezintisi metin alanından başlar.
                     autofocus: true,
                     textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _search(),
+                    onFieldSubmitted: (_) => _search(),
                     autocorrect: false,
                     decoration: InputDecoration(
                       hintText: l10n.searchHint,

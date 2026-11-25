@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -92,6 +93,8 @@ class _TvPlayerScreenState extends State<TvPlayerScreen>
   String? _resolvedEntryKey;
   ProviderSettings _providerSettings = const ProviderSettings();
   MediaPreferences _preferences = MediaPreferences.defaults();
+  bool _lowMemoryMode = false;
+  Duration _seekStep = const Duration(seconds: 10);
   List<PlayableEntryDto> _queue = const [];
   PlayableEntryDto? _upNext;
   List<VideoAudioTrack> _audioTracks = const [];
@@ -176,12 +179,20 @@ class _TvPlayerScreenState extends State<TvPlayerScreen>
 
   Future<void> _loadPreferences() async {
     try {
+      final hasTitlePreferences = await _preferenceStore.has(widget.nzbPath);
+      final hasDefaults = await _preferenceStore.hasPlaybackDefaults();
+      final defaults = await _preferenceStore.loadPlaybackDefaults();
+      _lowMemoryMode = defaults.lowMemory;
       _preferences = await _preferenceStore.load(widget.nzbPath);
+      if (hasTitlePreferences || hasDefaults) {
+        _seekStep = Duration(seconds: _preferences.seekStepSeconds);
+      }
       _subtitleDelay = Duration(
         milliseconds: (_preferences.subtitleDelaySeconds * 1000).round(),
       );
     } catch (_) {
       _preferences = MediaPreferences.defaults();
+      _seekStep = const Duration(seconds: 10);
       _subtitleDelay = Duration.zero;
     }
   }
@@ -207,7 +218,9 @@ class _TvPlayerScreenState extends State<TvPlayerScreen>
         port: _providerSettings.port,
         username: _providerSettings.username,
         password: _providerSettings.password,
-        maxConnections: _providerSettings.maxConnections,
+        maxConnections: _lowMemoryMode
+            ? math.min(_providerSettings.maxConnections, 2)
+            : _providerSettings.maxConnections,
       ),
       nzbPath: widget.nzbPath,
       entryKey: entryKey,
@@ -710,7 +723,7 @@ class _TvPlayerScreenState extends State<TvPlayerScreen>
   @override
   bool get remoteNavigationMode => true;
   @override
-  Duration get seekStep => const Duration(seconds: 10);
+  Duration get seekStep => _seekStep;
   @override
   void revealControls() => _revealControls();
   @override

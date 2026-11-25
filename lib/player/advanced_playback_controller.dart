@@ -200,6 +200,23 @@ class AdvancedPlaybackController {
     'framedrop': 'decoder+vo',
   };
 
+  static const _normalBufferProfile = <String, String>{
+    'demuxer-max-bytes': '${32 * 1024 * 1024}',
+    'demuxer-max-back-bytes': '${32 * 1024 * 1024}',
+  };
+  static const _lowMemoryBufferProfile = <String, String>{
+    'demuxer-max-bytes': '${8 * 1024 * 1024}',
+    'demuxer-max-back-bytes': '${8 * 1024 * 1024}',
+  };
+
+  /// Limits demuxer read-ahead/back buffers on memory-constrained devices.
+  /// The normal profile explicitly retains media_kit's 32+32 MiB default.
+  Future<void> setLowMemoryBuffering(bool enabled) async {
+    await _applyPropertiesWithReadback(
+      enabled ? _lowMemoryBufferProfile : _normalBufferProfile,
+    );
+  }
+
   /// Dolby Vision Profile 5 (HDR10 baz katmansız, yalnız RPU üstverili)
   /// içerikte renk düzeltmesi yapan libavfilter grafı. Paketli mpv'nin
   /// render yolu (legacy libmpv render API) DV reshape yapmadığından

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zanzibarr/player/media_preferences.dart';
 import 'package:zanzibarr/settings/provider_settings.dart';
 import 'package:zanzibarr/settings/settings_screen.dart';
+import 'package:zanzibarr/settings/ui_preferences.dart';
 
 import 'l10n_test_helper.dart';
 
@@ -42,6 +44,20 @@ class _FakeStore extends ProviderSettingsStore {
 
   @override
   Future<ProviderSettings> load() async => saved;
+}
+
+class _FakeUiPreferencesStore extends UiPreferencesStore {
+  PlaybackDefaults value = const PlaybackDefaults();
+  final writes = <PlaybackDefaults>[];
+
+  @override
+  Future<PlaybackDefaults> loadPlaybackDefaults() async => value;
+
+  @override
+  Future<void> savePlaybackDefaults(PlaybackDefaults next) async {
+    value = next;
+    writes.add(next);
+  }
 }
 
 /// Ayarlar ekranı artık hesap kartıyla uzun: test yüzeyi uzaltılırsa tüm
@@ -155,4 +171,78 @@ void main() {
     // Kayıt aktifliği değiştirir ama hesap listesi aynı kalır.
     expect(store.profiles.length, 2);
   });
+
+  testWidgets(
+    'oynatıcı varsayılanları kaydedilir ve sağlayıcı sınırı korunur',
+    (tester) async {
+      final providerStore = _FakeStore()
+        ..profiles = const [
+          ProviderProfile(
+            id: 'a',
+            host: 'news.example.com',
+            username: 'demo',
+            password: 'TESTPASS123',
+            maxConnections: 24,
+          ),
+        ]
+        ..activeId = 'a';
+      final uiStore = _FakeUiPreferencesStore();
+      final preferences = UiPreferencesController(uiStore)
+        ..playbackDefaults = uiStore.value;
+      _tallSurface(tester);
+      await tester.pumpWithL10n(
+        SettingsScreen(store: providerStore, uiPreferences: preferences),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextFormField, '24'), findsOneWidget);
+      await tester.tap(
+        find.widgetWithText(SwitchListTile, 'Düşük bellek modu'),
+      );
+      await tester.pumpAndSettle();
+      expect(uiStore.value.lowMemory, isTrue);
+      expect(find.widgetWithText(TextFormField, '24'), findsOneWidget);
+
+      await tester.tap(find.byType(DropdownButtonFormField<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('10').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Video teması'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sinema').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.widgetWithText(DropdownButtonFormField<String>, 'Ses teması'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Gece').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.widgetWithText(
+          DropdownButtonFormField<String>,
+          'Altyazı yazı tipi',
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Zanzibarr Mono').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        uiStore.value,
+        const PlaybackDefaults(
+          lowMemory: true,
+          seekStepSeconds: 10,
+          videoPreset: 'cinema',
+          audioPreset: 'night',
+          subtitleFont: 'mono',
+        ),
+      );
+      expect(uiStore.writes, isNotEmpty);
+    },
+  );
 }

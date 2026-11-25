@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import '../player/media_preferences.dart';
 
 /// Uygulamanın desteklediği arayüz dilleri. İlk öğe varsayılan dildir (en).
 ///
@@ -34,6 +38,8 @@ class UiPreferencesStore {
 
   static const _kThemeMode = 'ui.themeMode';
   static const _kLocale = 'ui.locale';
+  static const _kPlaybackDefaults =
+      MediaPreferencesStore.globalDefaultsStorageKey;
 
   Future<(ThemeMode, Locale)> load() async {
     final themeRaw = await _storage.read(key: _kThemeMode);
@@ -46,6 +52,19 @@ class UiPreferencesStore {
 
   Future<void> saveLocale(Locale locale) =>
       _storage.write(key: _kLocale, value: locale.languageCode);
+
+  Future<PlaybackDefaults> loadPlaybackDefaults() async {
+    try {
+      final raw = await _storage.read(key: _kPlaybackDefaults);
+      if (raw == null || raw.isEmpty) return const PlaybackDefaults();
+      return PlaybackDefaults.fromJson(jsonDecode(raw));
+    } catch (_) {
+      return const PlaybackDefaults();
+    }
+  }
+
+  Future<void> savePlaybackDefaults(PlaybackDefaults defaults) => _storage
+      .write(key: _kPlaybackDefaults, value: jsonEncode(defaults.toJson()));
 
   static ThemeMode _parseThemeMode(String? raw) => switch (raw) {
     'light' => ThemeMode.light,
@@ -71,12 +90,21 @@ class UiPreferencesController extends ChangeNotifier {
 
   ThemeMode themeMode = ThemeMode.dark;
   Locale locale = supportedAppLocales.first.$1;
+  PlaybackDefaults playbackDefaults = const PlaybackDefaults();
 
   Future<void> load() async {
     final (mode, savedLocale) = await _store.load();
     themeMode = mode;
     locale = savedLocale;
+    playbackDefaults = await _store.loadPlaybackDefaults();
     notifyListeners();
+  }
+
+  Future<void> setPlaybackDefaults(PlaybackDefaults next) async {
+    if (next == playbackDefaults) return;
+    playbackDefaults = next;
+    notifyListeners();
+    await _store.savePlaybackDefaults(next);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

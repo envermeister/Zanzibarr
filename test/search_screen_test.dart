@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zanzibarr/player/media_preferences.dart';
 import 'package:zanzibarr/search/search_history.dart';
 import 'package:zanzibarr/search/search_screen.dart';
 import 'package:zanzibarr/settings/indexer_settings.dart';
@@ -505,6 +506,92 @@ void main() {
       // Oynatma aynı yolu yeniden kullandı: ek indirme yok.
       expect(downloadCalls, 2);
       expect(playedPath, '/tmp/bir-film.nzb');
+    });
+
+    testWidgets('oynatma başlarken kalan sağlık denetimleri durur', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      var healthCalls = 0;
+      var downloadCalls = 0;
+      String? playedPath;
+      await tester.pumpWithL10n(
+        SearchScreen(
+          store: _completeStore,
+          searchFn: _fakeSearch,
+          providerStore: _completeProviderStore,
+          downloadFn: (config, nzbUrl, suggestedName) async {
+            downloadCalls++;
+            return '/tmp/bir-film.nzb';
+          },
+          healthFn: (config, nzbPath) async {
+            healthCalls++;
+            await gate.future;
+            return healthReport('good');
+          },
+          onDownloaded: (path) => playedPath = path,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await searchWithoutSettle(tester, 'film');
+      expect(healthCalls, 1);
+      expect(downloadCalls, 1);
+
+      await tester.tap(find.text('Bir.Film.2024.2160p.WEB-DL.DV.HEVC-GRP'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(playedPath, '/tmp/bir-film.nzb');
+      expect(downloadCalls, 1, reason: 'ön kontrol NZBsi yeniden kullanılır');
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(healthCalls, 1, reason: 'ikinci sonuç için yeni denetim başlamaz');
+    });
+
+    testWidgets('düşük bellek sağlık taramasını ilk 10 birleşik sonuçla sınırlar', (
+      tester,
+    ) async {
+      var healthCalls = 0;
+      final items = List.generate(
+        12,
+        (index) => SearchItemDto(
+          title: 'Film.$index.2024.1080p.WEB-GRP',
+          source: 'indexer',
+          sourceId: 'default',
+          nzbUrl: 'https://indexer.example/getnzb/$index',
+          sizeBytes: BigInt.from(1000),
+          badges: const ['1080p'],
+          mediaKind: 'movie',
+        ),
+      );
+      await tester.pumpWithL10n(
+        SearchScreen(
+          store: _completeStore,
+          searchFn:
+              ({
+                indexers,
+                easynews,
+                required query,
+                required limit,
+                required offset,
+              }) async => SearchPageDto(
+                total: BigInt.from(items.length),
+                items: items,
+              ),
+          providerStore: _completeProviderStore,
+          downloadFn: (config, nzbUrl, suggestedName) async => '/tmp/a.nzb',
+          healthFn: (config, nzbPath) async {
+            healthCalls++;
+            return healthReport('good');
+          },
+          uiPreferences: turkishUiPreferences()
+            ..playbackDefaults = const PlaybackDefaults(lowMemory: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _enterQueryAndSearch(tester, 'film');
+
+      expect(healthCalls, 10);
     });
 
     testWidgets('yeni arama gecikmiş eski denetimi geçersiz kılar', (

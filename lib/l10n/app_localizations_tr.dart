@@ -22,6 +22,20 @@ class AppLocalizationsTr extends AppLocalizations {
       'Dil ve görünüm tercihi bu cihazda saklanır.';
 
   @override
+  String get playbackSectionTitle => 'Oynatıcı';
+
+  @override
+  String get playbackSectionSubtitle =>
+      'Yeni içerikler için genel varsayılanlar. İçeriğe özel tercihler önceliklidir. TV\'de metin alanı yalnız OK ile klavye açar.';
+
+  @override
+  String get playbackLowMemoryTitle => 'Düşük bellek modu';
+
+  @override
+  String get playbackLowMemorySubtitle =>
+      '2 GB cihazlar için bağlantıyı 2 ile sınırlar, segment önbelleklerini ve tamponları küçültür, önizlemeleri kapatır.';
+
+  @override
   String get languageLabel => 'Dil';
 
   @override

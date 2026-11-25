@@ -21,6 +21,20 @@ class AppLocalizationsJa extends AppLocalizations {
   String get appSectionSubtitle => '言語と外観の設定はこのデバイスに保存されます。';
 
   @override
+  String get playbackSectionTitle => 'Playback';
+
+  @override
+  String get playbackSectionSubtitle =>
+      'App-wide defaults for new titles. A title\'s own settings take priority. On TV, text fields open the keyboard only with OK.';
+
+  @override
+  String get playbackLowMemoryTitle => 'Low memory mode';
+
+  @override
+  String get playbackLowMemorySubtitle =>
+      'For 2 GB devices: caps streaming at 2 connections, shrinks segment caches and buffers, and disables thumbnails.';
+
+  @override
   String get languageLabel => '言語';
 
   @override

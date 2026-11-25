@@ -196,6 +196,79 @@ void main() {
     expect(await store.load(path), MediaPreferences.defaults());
   });
 
+  group('app-wide playback defaults', () {
+    test('round-trips sanitized defaults without an NZB path', () async {
+      final storage = _MemoryPreferenceStorage();
+      final store = MediaPreferencesStore(storage: storage);
+      const defaults = PlaybackDefaults(
+        lowMemory: true,
+        seekStepSeconds: 10,
+        videoPreset: 'cinema',
+        audioPreset: 'night',
+        subtitleFont: 'serif',
+      );
+
+      await store.savePlaybackDefaults(defaults);
+
+      expect(await store.loadPlaybackDefaults(), defaults);
+      expect(storage.values.keys.single, 'playback.defaults');
+      expect(storage.values.values.single, isNot(contains('.nzb')));
+    });
+
+    test('new titles inherit defaults and title records take priority', () async {
+      final storage = _MemoryPreferenceStorage();
+      final store = MediaPreferencesStore(storage: storage);
+      const path = '/media/episode.nzb';
+      await store.savePlaybackDefaults(
+        const PlaybackDefaults(
+          seekStepSeconds: 10,
+          videoPreset: 'cinema',
+          audioPreset: 'night',
+          subtitleFont: 'serif',
+        ),
+      );
+
+      final inherited = await store.load(path);
+      expect(inherited.seekStepSeconds, 10);
+      expect(inherited.videoPreset, 'cinema');
+      expect(inherited.audioPreset, 'night');
+      expect(inherited.subtitleFont, 'serif');
+
+      await store.save(
+        path,
+        MediaPreferences(
+          seekStepSeconds: 30,
+          videoPreset: 'vivid',
+          audioPreset: 'dialogue',
+          subtitleFont: 'mono',
+        ),
+      );
+      final own = await store.load(path);
+      expect(own.seekStepSeconds, 30);
+      expect(own.videoPreset, 'vivid');
+      expect(own.audioPreset, 'dialogue');
+      expect(own.subtitleFont, 'mono');
+
+      await store.clear(path);
+      expect(await store.load(path), inherited);
+    });
+
+    test('missing or corrupt global data preserves legacy defaults', () async {
+      final storage = _MemoryPreferenceStorage();
+      final store = MediaPreferencesStore(storage: storage);
+      const path = '/media/legacy.nzb';
+
+      expect(await store.has(path), isFalse);
+      expect(await store.hasPlaybackDefaults(), isFalse);
+      expect(await store.load(path), MediaPreferences.defaults());
+
+      storage.values[MediaPreferencesStore.globalDefaultsStorageKey] =
+          '{broken';
+      expect(await store.loadPlaybackDefaults(), const PlaybackDefaults());
+      expect(await store.load(path), MediaPreferences.defaults());
+    });
+  });
+
   group('External subtitle association (schema v2)', () {
     test('Altyazı referansı JSON gidiş-dönüşü yapılır', () {
       final preferences = MediaPreferences(

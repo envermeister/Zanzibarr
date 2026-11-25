@@ -38,6 +38,44 @@ pub(crate) const DEFAULT_PREFETCH_DEPTH: usize = 8;
 /// Arşiv ciltleri için daha dar dalga: her cildin kendi kaynağı vardır ve
 /// cilt sayısı çok olduğundan bellek baskısı cilt başına büyür.
 pub(crate) const ARCHIVE_PREFETCH_DEPTH: usize = 4;
+const LOW_MEMORY_CACHE_SEGMENTS: usize = 32;
+const LOW_MEMORY_PREFETCH_DEPTH: usize = 2;
+const LOW_MEMORY_ARCHIVE_CACHE_SEGMENTS: usize = 2;
+const LOW_MEMORY_ARCHIVE_PREFETCH_DEPTH: usize = 1;
+
+/// One or two NNTP connections automatically select the low-resource profile;
+/// three or more retain the established cache and prefetch behavior.
+pub(crate) fn cache_segments_for(max_connections: usize) -> usize {
+    if max_connections <= 2 {
+        LOW_MEMORY_CACHE_SEGMENTS
+    } else {
+        NntpByteSource::DEFAULT_CACHE_SEGMENTS
+    }
+}
+
+pub(crate) fn prefetch_depth_for(max_connections: usize) -> usize {
+    if max_connections <= 2 {
+        LOW_MEMORY_PREFETCH_DEPTH
+    } else {
+        DEFAULT_PREFETCH_DEPTH
+    }
+}
+
+pub(crate) fn archive_cache_segments_for(max_connections: usize) -> usize {
+    if max_connections <= 2 {
+        LOW_MEMORY_ARCHIVE_CACHE_SEGMENTS
+    } else {
+        super::archive::ARCHIVE_VOLUME_CACHE_SEGMENTS
+    }
+}
+
+pub(crate) fn archive_prefetch_depth_for(max_connections: usize) -> usize {
+    if max_connections <= 2 {
+        LOW_MEMORY_ARCHIVE_PREFETCH_DEPTH
+    } else {
+        ARCHIVE_PREFETCH_DEPTH
+    }
+}
 
 /// Başka görevin çekmekte olduğu segmenti beklerken uyanma aralığı. Gerçek
 /// uyanma `Notify` ile anında gelir; bu yalnız kaçan sinyale karşı emniyettir.
@@ -57,14 +95,26 @@ pub(crate) async fn read_body_with_timeout(
 /// Çözülmüş segment verisi için basit kapasiteli FIFO önbellek.
 pub(crate) struct SegmentCache {
     capacity: usize,
+    max_bytes: Option<usize>,
+    bytes: usize,
     map: HashMap<usize, Arc<Vec<u8>>>,
     order: VecDeque<usize>,
 }
 
 impl SegmentCache {
     pub(crate) fn new(capacity: usize) -> Self {
+        Self::with_optional_max_bytes(capacity, None)
+    }
+
+    pub(crate) fn with_max_bytes(capacity: usize, max_bytes: usize) -> Self {
+        Self::with_optional_max_bytes(capacity, Some(max_bytes))
+    }
+
+    fn with_optional_max_bytes(capacity: usize, max_bytes: Option<usize>) -> Self {
         SegmentCache {
             capacity: capacity.max(1),
+            max_bytes,
+            bytes: 0,
             map: HashMap::new(),
             order: VecDeque::new(),
         }
@@ -78,13 +128,24 @@ impl SegmentCache {
         if self.map.contains_key(&index) {
             return;
         }
-        while self.order.len() >= self.capacity {
+        if self.max_bytes.is_some_and(|max| data.len() > max) {
+            // Oversized segments are served but never retained.
+            return;
+        }
+        while self.order.len() >= self.capacity
+            || self
+                .max_bytes
+                .is_some_and(|max| self.bytes + data.len() > max)
+        {
             if let Some(evicted) = self.order.pop_front() {
-                self.map.remove(&evicted);
+                if let Some(old) = self.map.remove(&evicted) {
+                    self.bytes -= old.len();
+                }
             } else {
                 break;
             }
         }
+        self.bytes += data.len();
         self.order.push_back(index);
         self.map.insert(index, data);
     }
@@ -127,6 +188,12 @@ impl FetchContext {
     ) -> io::Result<Arc<Vec<u8>>> {
         loop {
             if let Some(data) = self.cache.lock().expect("kilit").get(index) {
+                // Only real consumption advances the bounded prefetch window.
+                // Completed tasks never chain more work while playback is paused.
+                if kick && self.prefetch_depth > 0 {
+                    let gen = self.prefetch_gen.load(Ordering::SeqCst);
+                    self.spawn_prefetch(index + 1, gen, self.prefetch_depth);
+                }
                 return Ok(data);
             }
             {
@@ -203,7 +270,6 @@ impl FetchContext {
             None => work.await?,
         };
 
-        let data = Arc::new(part.data.clone());
         {
             let mut loc = self.locator.lock().expect("kilit");
             if !loc.is_located(index) {
@@ -211,6 +277,7 @@ impl FetchContext {
                     .map_err(|e| io::Error::other(e.to_string()))?;
             }
         }
+        let data = Arc::new(part.data);
         self.cache
             .lock()
             .expect("kilit")
@@ -218,17 +285,15 @@ impl FetchContext {
         Ok(data)
     }
 
-    /// `start..start+depth` aralığındaki segmentleri arka plan görevleriyle
-    /// çekmeye başlar. Her tamamlanan görev, pencere kayacak biçimde
-    /// `index+depth`'i zincirler; jenerasyon değiştiyse (seek/yeni dalga)
-    /// zincir kırılır.
+    /// Starts one bounded prefetch window. Tasks do not schedule successors;
+    /// the next window opens only when the player consumes another segment.
     fn spawn_prefetch(self: &Arc<Self>, start: usize, gen: u64, depth: usize) {
         for index in start..start.saturating_add(depth) {
-            Self::spawn_prefetch_one(&Arc::clone(self), index, gen, depth);
+            Self::spawn_prefetch_one(&Arc::clone(self), index, gen);
         }
     }
 
-    fn spawn_prefetch_one(self: &Arc<Self>, index: usize, gen: u64, depth: usize) {
+    fn spawn_prefetch_one(self: &Arc<Self>, index: usize, gen: u64) {
         if self.prefetch_gen.load(Ordering::SeqCst) != gen {
             return;
         }
@@ -247,7 +312,7 @@ impl FetchContext {
         let ctx = Arc::clone(self);
         tokio::spawn(async move {
             let stale = ctx.prefetch_gen.load(Ordering::SeqCst) != gen;
-            let result = if stale {
+            let _ = if stale {
                 Err(io::Error::new(
                     io::ErrorKind::Interrupted,
                     "invalid prefetch wave",
@@ -257,10 +322,6 @@ impl FetchContext {
             };
             ctx.inflight.lock().expect("kilit").remove(&index);
             ctx.inflight_notify.notify_waiters();
-            if result.is_ok() && ctx.prefetch_gen.load(Ordering::SeqCst) == gen {
-                let next = index.saturating_add(depth);
-                Self::spawn_prefetch_one(&ctx, next, gen, depth);
-            }
         });
     }
 }
@@ -288,6 +349,7 @@ impl NntpByteSource {
             Self::DEFAULT_CACHE_SEGMENTS,
             DEFAULT_PREFETCH_DEPTH,
             None,
+            None,
         )
         .await
     }
@@ -297,7 +359,7 @@ impl NntpByteSource {
         file: &NzbFile,
         cache_segments: usize,
     ) -> io::Result<Self> {
-        Self::with_options(pool, file, cache_segments, ARCHIVE_PREFETCH_DEPTH, None).await
+        Self::with_options(pool, file, cache_segments, ARCHIVE_PREFETCH_DEPTH, None, None).await
     }
 
     /// Tam yapılandırma: önbellek kapasitesi, önden çekim dalgası derinliği
@@ -309,14 +371,19 @@ impl NntpByteSource {
         cache_segments: usize,
         prefetch_depth: usize,
         cancellation: Option<watch::Receiver<bool>>,
+        max_cache_bytes: Option<usize>,
     ) -> io::Result<Self> {
         let filename = file.filename().unwrap_or("stream.bin").to_string();
         let content_type = content_type_for(&filename);
+        let cache = match max_cache_bytes {
+            Some(max_bytes) => SegmentCache::with_max_bytes(cache_segments, max_bytes),
+            None => SegmentCache::new(cache_segments),
+        };
         let source = NntpByteSource {
             ctx: Arc::new(FetchContext {
                 pool,
                 locator: Mutex::new(SegmentLocator::from_nzb_file(file)),
-                cache: Mutex::new(SegmentCache::new(cache_segments)),
+                cache: Mutex::new(cache),
                 inflight: Mutex::new(HashSet::new()),
                 inflight_notify: Notify::new(),
                 prefetch_gen: AtomicU64::new(0),
@@ -563,6 +630,44 @@ mod tests {
         cache.insert(5, Arc::new(vec![5]));
         cache.insert(5, Arc::new(vec![9])); // yok sayılır
         assert_eq!(cache.get(5).unwrap().as_slice(), &[5]);
+    }
+
+    #[test]
+    fn cache_bayt_butcesini_asinca_en_eskiyi_atar() {
+        let mut cache = SegmentCache::with_max_bytes(8, 10);
+        cache.insert(0, Arc::new(vec![0; 6]));
+        cache.insert(1, Arc::new(vec![1; 5]));
+        assert!(cache.get(0).is_none());
+        assert!(cache.get(1).is_some());
+        assert_eq!(cache.bytes, 5);
+        cache.insert(2, Arc::new(vec![2; 20]));
+        assert!(cache.get(2).is_none(), "oversized segments are not cached");
+        assert!(cache.get(1).is_some());
+    }
+
+    #[test]
+    fn dusuk_baglantida_kaynak_profili_kuculur() {
+        for max_connections in [1, 2] {
+            assert_eq!(cache_segments_for(max_connections), 32);
+            assert_eq!(prefetch_depth_for(max_connections), 2);
+            assert_eq!(archive_cache_segments_for(max_connections), 2);
+            assert_eq!(archive_prefetch_depth_for(max_connections), 1);
+        }
+        for max_connections in [3, 10, 60] {
+            assert_eq!(
+                cache_segments_for(max_connections),
+                NntpByteSource::DEFAULT_CACHE_SEGMENTS
+            );
+            assert_eq!(prefetch_depth_for(max_connections), DEFAULT_PREFETCH_DEPTH);
+            assert_eq!(
+                archive_cache_segments_for(max_connections),
+                super::super::archive::ARCHIVE_VOLUME_CACHE_SEGMENTS
+            );
+            assert_eq!(
+                archive_prefetch_depth_for(max_connections),
+                ARCHIVE_PREFETCH_DEPTH
+            );
+        }
     }
 
     #[tokio::test]

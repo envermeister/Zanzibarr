@@ -212,6 +212,95 @@ String? _languageCodeOrNull(String value) {
   return RegExp(r'^[a-z]{2,3}$').hasMatch(code) ? code : null;
 }
 
+/// App-wide playback defaults. Per-NZB preferences take priority.
+class PlaybackDefaults {
+  const PlaybackDefaults({
+    this.lowMemory = false,
+    this.seekStepSeconds = 1,
+    this.videoPreset = 'auto',
+    this.audioPreset = 'auto',
+    this.subtitleFont = kDefaultSubtitleFontId,
+  });
+
+  final bool lowMemory;
+  final int seekStepSeconds;
+  final String videoPreset;
+  final String audioPreset;
+  final String subtitleFont;
+
+  PlaybackDefaults copyWith({
+    bool? lowMemory,
+    int? seekStepSeconds,
+    String? videoPreset,
+    String? audioPreset,
+    String? subtitleFont,
+  }) => PlaybackDefaults(
+    lowMemory: lowMemory ?? this.lowMemory,
+    seekStepSeconds: seekStepSeconds ?? this.seekStepSeconds,
+    videoPreset: videoPreset ?? this.videoPreset,
+    audioPreset: audioPreset ?? this.audioPreset,
+    subtitleFont: subtitleFont ?? this.subtitleFont,
+  );
+
+  MediaPreferences toMediaPreferences() => MediaPreferences(
+    seekStepSeconds: seekStepSeconds,
+    videoPreset: videoPreset,
+    audioPreset: audioPreset,
+    subtitleFont: subtitleFont,
+  );
+
+  Map<String, Object?> toJson() => {
+    'lowMemory': lowMemory,
+    'seekStepSeconds': seekStepSeconds,
+    'videoPreset': videoPreset,
+    'audioPreset': audioPreset,
+    'subtitleFont': subtitleFont,
+  };
+
+  factory PlaybackDefaults.fromJson(Object? json) {
+    if (json is! Map) return const PlaybackDefaults();
+    final preferences = MediaPreferences(
+      seekStepSeconds: json['seekStepSeconds'] is num
+          ? (json['seekStepSeconds'] as num).toInt()
+          : 1,
+      videoPreset: json['videoPreset'] is String
+          ? json['videoPreset'] as String
+          : 'auto',
+      audioPreset: json['audioPreset'] is String
+          ? json['audioPreset'] as String
+          : 'auto',
+      subtitleFont: json['subtitleFont'] is String
+          ? json['subtitleFont'] as String
+          : kDefaultSubtitleFontId,
+    );
+    return PlaybackDefaults(
+      lowMemory: json['lowMemory'] == true,
+      seekStepSeconds: preferences.seekStepSeconds,
+      videoPreset: preferences.videoPreset,
+      audioPreset: preferences.audioPreset,
+      subtitleFont: preferences.subtitleFont,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is PlaybackDefaults &&
+      lowMemory == other.lowMemory &&
+      seekStepSeconds == other.seekStepSeconds &&
+      videoPreset == other.videoPreset &&
+      audioPreset == other.audioPreset &&
+      subtitleFont == other.subtitleFont;
+
+  @override
+  int get hashCode => Object.hash(
+    lowMemory,
+    seekStepSeconds,
+    videoPreset,
+    audioPreset,
+    subtitleFont,
+  );
+}
+
 /// Non-secret, per-media playback preferences.
 ///
 /// The public constructor sanitizes every value before it can be persisted.
@@ -618,6 +707,7 @@ class MediaPreferencesStore {
   final PlayerPreferenceStorage _storage;
 
   static const storageKeyPrefix = 'zanzibarr.player_preferences.';
+  static const globalDefaultsStorageKey = 'playback.defaults';
   static final BigInt _fnvOffsetBasis64 = BigInt.parse(
     'cbf29ce484222325',
     radix: 16,
@@ -636,10 +726,33 @@ class MediaPreferencesStore {
     return '$storageKeyPrefix$digest';
   }
 
+  Future<bool> has(String nzbPath) async =>
+      await _storage.read(storageKeyFor(nzbPath)) != null;
+
+  Future<bool> hasPlaybackDefaults() async =>
+      await _storage.read(globalDefaultsStorageKey) != null;
+
+  Future<void> savePlaybackDefaults(PlaybackDefaults defaults) => _storage.write(
+    globalDefaultsStorageKey,
+    jsonEncode(defaults.toJson()),
+  );
+
+  Future<PlaybackDefaults> loadPlaybackDefaults() async {
+    final encoded = await _storage.read(globalDefaultsStorageKey);
+    if (encoded == null || encoded.isEmpty) return const PlaybackDefaults();
+    try {
+      return PlaybackDefaults.fromJson(jsonDecode(encoded));
+    } catch (_) {
+      return const PlaybackDefaults();
+    }
+  }
+
   Future<MediaPreferences> load(String nzbPath) async {
     final encoded = await _storage.read(storageKeyFor(nzbPath));
-    if (encoded == null) return MediaPreferences.defaults();
-    return MediaPreferences.decodeOrDefault(encoded);
+    if (encoded != null) {
+      return MediaPreferences.decodeOrDefault(encoded);
+    }
+    return (await loadPlaybackDefaults()).toMediaPreferences();
   }
 
   Future<void> save(String nzbPath, MediaPreferences preferences) =>

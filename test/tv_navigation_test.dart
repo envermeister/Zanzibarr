@@ -419,7 +419,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(_focusLabel(tester), 'arama-alanı');
+      expect(_focusLabel(tester), 'alan:');
 
       await tester.enterText(find.byType(TextField), 'film');
       // Klavyeden "ara" eylemi aramayı başlatır.

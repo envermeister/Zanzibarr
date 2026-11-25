@@ -146,6 +146,30 @@ abstract class AppLocalizations {
   /// **'Language and appearance preferences are stored on this device.'**
   String get appSectionSubtitle;
 
+  /// No description provided for @playbackSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get playbackSectionTitle;
+
+  /// No description provided for @playbackSectionSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'App-wide defaults for new titles. A title\'s own settings take priority. On TV, text fields open the keyboard only with OK.'**
+  String get playbackSectionSubtitle;
+
+  /// No description provided for @playbackLowMemoryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Low memory mode'**
+  String get playbackLowMemoryTitle;
+
+  /// No description provided for @playbackLowMemorySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'For 2 GB devices: caps streaming at 2 connections, shrinks segment caches and buffers, and disables thumbnails.'**
+  String get playbackLowMemorySubtitle;
+
   /// No description provided for @languageLabel.
   ///
   /// In en, this message translates to:

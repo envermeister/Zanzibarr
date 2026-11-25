@@ -124,6 +124,25 @@ void main() {
     },
   );
 
+  test('düşük bellek tamponu 8+8 MiB, normal profil 32+32 MiB', () async {
+    final backend = _FakeBackend();
+    final controller = AdvancedPlaybackController(backend);
+
+    await controller.setLowMemoryBuffering(true);
+    expect(backend.properties['demuxer-max-bytes'], '${8 * 1024 * 1024}');
+    expect(
+      backend.properties['demuxer-max-back-bytes'],
+      '${8 * 1024 * 1024}',
+    );
+
+    await controller.setLowMemoryBuffering(false);
+    expect(backend.properties['demuxer-max-bytes'], '${32 * 1024 * 1024}');
+    expect(
+      backend.properties['demuxer-max-back-bytes'],
+      '${32 * 1024 * 1024}',
+    );
+  });
+
   test('libmpv sürümü native property üzerinden okunuyor', () async {
     final backend = _FakeBackend()
       ..readbackOverrides['mpv-version'] = 'mpv 0.41.0';

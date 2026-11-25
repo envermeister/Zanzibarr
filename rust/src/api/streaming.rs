@@ -19,9 +19,7 @@ use tokio::task::JoinHandle;
 
 use crate::engine::archive::{sniff_archive_kind, ArchiveKind};
 use crate::engine::nntp::{NntpPool, ProviderConfig, TlsNntpConnector};
-use crate::engine::nntp_source::{
-    read_body_with_timeout, NntpByteSource, BODY_READ_TIMEOUT, DEFAULT_PREFETCH_DEPTH,
-};
+use crate::engine::nntp_source::{read_body_with_timeout, NntpByteSource, BODY_READ_TIMEOUT};
 use crate::engine::nzb::{self, NzbContentError, NzbFile};
 use crate::engine::rar::{self, RarEntrySource, RarError};
 use crate::engine::rarcompressed::CompressedRarEntrySource;
@@ -292,6 +290,9 @@ async fn prepare_stream_source(
     cancellation: watch::Receiver<bool>,
 ) -> Result<StreamSource, String> {
     let pool = TlsNntpConnector::new(config.into()).into_pool();
+    let cache_segments = crate::engine::nntp_source::cache_segments_for(pool.max_connections());
+    let prefetch_depth = crate::engine::nntp_source::prefetch_depth_for(pool.max_connections());
+    let max_cache_bytes = (pool.max_connections() <= 2).then_some(24 * 1024 * 1024);
     match selection {
         StreamSelection::Direct(file) => {
             let source = tokio::select! {
@@ -302,9 +303,10 @@ async fn prepare_stream_source(
                 result = NntpByteSource::with_options(
                     pool,
                     &file,
-                    NntpByteSource::DEFAULT_CACHE_SEGMENTS,
-                    DEFAULT_PREFETCH_DEPTH,
+                    cache_segments,
+                    prefetch_depth,
                     Some(cancellation),
+                    max_cache_bytes,
                 ) => {
                     result.map_err(|error| error.to_string())?
                 }
