@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Zanzibarr — Stream anything from Usenet</title>
-<meta name="description" content="Zanzibarr v2.0 streams NZB content without downloading — desktop, Android, Samsung Tizen TV and LG webOS. Multi-source search, health pre-checks, episode queue and OpenSubtitles. Free and open source.">
+<meta name="description" content="Zanzibarr v2.1 streams NZB content without downloading — desktop, Android, Samsung Tizen TV and LG webOS. Native TV playback, low-memory streaming, multi-source search, episode queue and OpenSubtitles. Free and open source.">
 <meta property="og:title" content="Zanzibarr">
 <meta property="og:description" content="Stream anything from Usenet. Own nothing. Wait for nothing.">
 <meta property="og:image" content="screenshots/home_dark.png">
@@ -264,7 +264,7 @@
       </a>
     </div>
     <div class="hero-demo">
-      <img src="screenshots/demo.gif" alt="Zanzibarr v2.0 walkthrough — search with health badges, play, and continue to the next episode">
+      <img src="screenshots/demo.gif" alt="Zanzibarr v2.1 walkthrough — search with health badges, play, and continue to the next episode">
     </div>
   </header>
 
@@ -295,7 +295,7 @@
                             │
             <b>localhost HTTP</b> server (Range requests)
                             │
-                   <b>libmpv</b> / media_kit</div>
+          <b>libmpv</b> / media_kit · native TV player</div>
   </section>
 
   <section id="screenshots" class="wrap">
@@ -328,16 +328,15 @@
 
   <section class="wrap">
     <p class="kicker">What's new</p>
-    <h2>{{ version }} — search smarter, keep watching</h2>
+    <h2>{{ version }} — native TV, lighter playback</h2>
     <ul class="road">
-      <li class="done"><b>Native Samsung & LG TV previews</b> — Tizen 6.0, separate Tizen 10/2026 and webOS 26 packages with native playback, D-pad controls and the same lazy Rust engine</li>
-      <li class="done"><b>Every source, one result list</b> — parallel multi-indexer search, Prowlarr/NZBHydra2, automatic Easynews web search and cross-source deduplication</li>
-      <li class="done"><b>Health before playback</b> — Good / Repairable / Risky / Incomplete badges from capped NNTP STAT sampling, NZB structure and PAR2 capacity</li>
-      <li class="done"><b>Season-pack continuity</b> — a natural-order play queue, watched-episode badges and a ten-second Up next card</li>
-      <li class="done"><b>OpenSubtitles + remembered languages</b> — release/moviehash search, per-episode subtitle associations, Arabic glyph fallback and preferred audio language across episodes</li>
-      <li class="done"><b>Multiple accounts</b> — named NNTP profiles with an active streaming account, plus multiple enabled indexer profiles</li>
-      <li class="done"><b>Search history + runtime HDR10+</b> — recent/saved query chips and passive ST 2094-40 detection without extra media fetches</li>
-      <li class="done"><b>Notarized macOS</b> — Developer ID signed, Apple-notarized and stapled; open the app normally with no Gatekeeper workaround</li>
+      <li class="done"><b>Native Samsung & LG TV</b> — Tizen 6.0, separate Tizen 10/2026 and webOS 26 packages with native playback, D-pad controls, shared search/history, episode queue and SRT/WebVTT subtitles</li>
+      <li class="done"><b>Lower-memory Android TV playback</b> — optional two-connection streaming, smaller byte-bounded caches and mpv buffers, plus an automatic small profile for one/two-connection providers</li>
+      <li class="done"><b>Lazy prefetch stays bounded</b> — only actual segment consumption advances the next window; starting playback stops the remaining health sweep and pausing does not fetch to end-of-file</li>
+      <li class="done"><b>Playback defaults + remote text editing</b> — app-wide seek step, video/audio presets and subtitle font, with per-title overrides; OK opens the TV keyboard only when requested</li>
+      <li class="done"><b>RAR QuickOpen compatibility</b> — a truncated SERVICE payload no longer invalidates complete media parts, while actual FILE truncation and split-chain checks remain strict</li>
+      <li class="done"><b>Android system-font fallback</b> — libass now uses fontconfig for `/system/fonts` and `/product/fonts`, with merged Zanzibarr fonts preserving deterministic Arabic shaping and music symbols</li>
+      <li class="done"><b>Everything from v2.0 remains included</b> — multi-source search, health badges, OpenSubtitles, multiple accounts, play queue, saved searches and runtime HDR10+ detection</li>
     </ul>
     <p class="section-sub"><a :href="repoUrl + '/releases/latest'" target="_blank" rel="noopener">Full release notes on GitHub →</a></p>
   </section>
@@ -396,7 +395,7 @@ const icon = (path) => `<svg viewBox="0 0 24 24">${path}</svg>`;
 createApp({
   data() {
     return {
-      version: 'v2.0',
+      version: 'v2.1',
       repoUrl: 'https://github.com/envermeister/zanzibarr',
       features: [
         {
@@ -421,7 +420,7 @@ createApp({
         },
         {
           title: 'Subtitles & audio that follow you',
-          body: 'Search OpenSubtitles by release and moviehash, keep language/file associations across episodes, render Arabic with proper glyph fallback, and remember your preferred audio language.',
+          body: 'Search OpenSubtitles by release and moviehash, keep language/file associations across episodes, use Android fontconfig plus deterministic Arabic/music fonts, and remember your preferred audio language.',
           icon: icon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M6 10h5M14 10h4M6 14h3M12 14h6"/>'),
         },
         {
@@ -590,7 +589,10 @@ createApp({
         { text: 'Multiple NNTP accounts + audio-language preference', done: true },
         { text: 'Runtime HDR10+ detection — passive HEVC ST 2094-40 scan', done: true },
         { text: 'macOS — Developer ID signed, notarized & stapled', done: true },
-        { text: 'Samsung Tizen TV + LG webOS 26 — preview packages in the v2.0 release; physical-device testing next', done: true },
+        { text: 'Samsung Tizen TV + LG webOS 26 — native test-signed/test-development packages in v2.1; physical-device testing next', done: true },
+        { text: 'Low-memory Android TV playback + bounded lazy prefetch', done: true },
+        { text: 'App-wide playback defaults + OK-to-edit Android TV text fields', done: true },
+        { text: 'RAR QuickOpen/SERVICE compatibility + Android fontconfig fallback', done: true },
         { text: 'TMDB / OMDb metadata', done: false },
         { text: 'iOS TestFlight & Android TV Play Store distribution', done: false },
         { text: 'Sleep timer', done: false },

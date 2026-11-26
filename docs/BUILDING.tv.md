@@ -1,6 +1,6 @@
 # Building Zanzibarr for Samsung Tizen and LG webOS
 
-Zanzibarr's native TV entrypoints target Samsung Tizen TV and LG webOS 26 Re:New+. Preview packages are published in the v2.0 release while main continues as v2.1. The desktop/mobile media_kit player is unchanged. TV builds use the official native `video_player` implementations and the same Rust NZB/NNTP/archive/range-server engine as every other platform.
+Zanzibarr's native TV entrypoints target Samsung Tizen TV and LG webOS 26 Re:New+. Test-signed/test-development packages are published with v2.1; physical-device validation and production signing remain separate steps. The desktop/mobile media_kit player is unchanged. TV builds use the official native `video_player` implementations and the same Rust NZB/NNTP/archive/range-server engine as every other platform.
 
 This document records the four upstream references used for the port, their distinct requirements, and Zanzibarr's build/verification model.
 
@@ -158,13 +158,13 @@ The verifier extracts the engine from each TPK/IPK and checks ARM ELF, SONAME an
 
 ### CI
 
-`.github/workflows/tv-build.yml` has three jobs: Tizen 6.0, Tizen 10.0 and webOS 26. It publishes unsigned-by-production-credentials release-candidate artifacts only; real-device installation and playback remain owner validation steps.
+`.github/workflows/tv-build.yml` has three jobs: Tizen 6.0, Tizen 10.0 and webOS 26. It publishes test-signed/test-development artifacts without production credentials; real-device installation and playback remain owner validation steps.
 
 ## Verification status
 
-- Rust: 332 tests plus clippy.
-- Flutter: 276 tests plus analysis, including TV audio preference, launcher, controls, fake native stream opening, queue transition and platform configuration tests.
+- Rust: 334 tests plus clippy.
+- Flutter: 289 tests plus 9 skips and analysis, including TV audio preference, launcher, controls, fake native stream opening, queue transition and platform configuration tests.
 - Both isolated TV dependency profiles and both SDK analyzers pass.
 - The Tizen 6.0/GCC 9.2 and Tizen 10.0/GCC 14.2 engines were also built independently from CI. `readelf` confirmed ELF32/ARM, soft-float ABI and the expected SONAME, with no dynamic `libstdc++` dependency in either engine.
-- [CI run 45067947147](https://github.com/envermeister/zanzibarr/actions/runs/45067947147) produced and verified all three packages. The downloaded Tizen 6.0 TPK, Tizen 10.0 TPK and webOS IPK were independently extracted and verified again with `tools/verify_tv_package.sh`.
+- For v2.1, the TV workflow is dispatched against the release tag. All three downloaded Tizen 6.0 TPK, Tizen 10.0 TPK and webOS IPK artifacts must pass `tools/verify_tv_package.sh` again before they are uploaded to the release.
 - Real Samsung/LG TV installation, codec behavior, NNTP credentials, playback and remote behavior still require physical-device verification. Package/ABI verification does not establish on-device playback or hardware codec support.

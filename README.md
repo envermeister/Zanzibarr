@@ -46,18 +46,16 @@ Zanzibarr turns Usenet into your personal streaming library. Point it at any `.n
   <p align="center"><img src="docs/screenshots/home_light.png" alt="Home — light" width="720"></p>
 </details>
 
-## New in v2.0
+## New in v2.1
 
-- **Search everywhere at once** — multiple Newznab indexers in parallel, Prowlarr/NZBHydra2 endpoints, automatic Easynews web search and cross-source deduplication.
-- **Know before you play** — capped NNTP `STAT` sampling plus structural/PAR2 analysis produces Good, Repairable, Risky or Incomplete health badges without downloading article bodies.
-- **Keep the season going** — a natural-order play queue, watched-episode badges and a ten-second Up next card with Play now / Finish episode / Clear queue.
-- **Find and remember subtitles** — OpenSubtitles search by release name and moviehash, per-language preferences, per-episode file associations and Arabic glyph fallback. External subtitles apply to the local player, not cast receivers.
-- **Your accounts and languages, remembered** — multiple switchable NNTP profiles, multiple enabled indexer profiles, and preferred audio language carried across episodes.
-- **More signal, less noise** — recent/saved search chips and passive runtime HDR10+ detection for HEVC in start-code containers such as Matroska.
-- **Native Samsung Tizen and LG webOS support** — preview packages for Tizen 6.0, Tizen 10/2026 and webOS 26 Re:New+ use the platforms' native video players and the same lazy Rust engine, with D-pad controls and shared search, queue and subtitle features. The TPKs are test-signed and the IPK is a test-development package; physical-device validation is pending.
-- **A cleaner macOS install** — the Apple Silicon package is Developer ID signed, notarized and stapled.
+- **Native Samsung Tizen and LG webOS TV** — Tizen 6.0, separate Tizen 10/2026 and webOS 26 Re:New+ packages use each platform's native video player with the same lazy Rust engine, D-pad controls, shared search/history, episode queue and SRT/WebVTT subtitles. The TPKs are test-signed and the IPK is a test-development package; physical-device validation is pending.
+- **Lower-memory Android TV playback** — an optional low-memory mode and automatic one/two-connection profile reduce segment caches, prefetch windows and mpv buffers. Prefetch advances only as segments are consumed, and paused playback does not keep fetching ahead.
+- **Playback defaults that fit your setup** — configure app-wide seek step, video/audio presets and subtitle font; a title's own saved settings still take priority.
+- **Remote-friendly text editing** — provider, indexer, OpenSubtitles and search fields keep D-pad focus without opening the keyboard. OK starts editing, and leaving the field restores navigation; touch and desktop input are unchanged.
+- **More robust archives and subtitles** — RAR QuickOpen/SERVICE tails no longer invalidate complete media parts, while Android libass gains fontconfig system-font fallback alongside deterministic Arabic/music-glyph fonts.
+- **All of v2.0's discovery and continuity features** — parallel multi-indexer + Easynews search, health badges, OpenSubtitles, multiple accounts, play queue and runtime HDR10+ detection remain included.
 
-Read the [full v2.0 release notes](https://github.com/envermeister/zanzibarr/releases/tag/v2.0).
+Read the [full v2.1 release notes](https://github.com/envermeister/zanzibarr/releases/tag/v2.1).
 
 ## Why Zanzibarr is different
 
@@ -97,13 +95,13 @@ Letterboxed rip? Draw your own crop with draggable handles, preview the aspect r
 Auto-hiding controls, double-click to seek ±10 s, click-to-pause, frame stepping, speed control, audio sync nudge, volume slider, Picture-in-Picture, and external audio/subtitle loading alongside the embedded tracks. Your preferred audio language is remembered across episodes.
 
 **Subtitles that find you**
-Search OpenSubtitles from the player by release name and moviehash, filter by language and apply the result without restarting. Language and downloaded-file associations carry into the next episode; bundled Noto Arabic fonts prevent missing-glyph squares. OpenSubtitles requires your own consumer API key (and an account login for free-tier downloads). External files are local-player only, not forwarded to cast receivers.
+Search OpenSubtitles from the player by release name and moviehash, filter by language and apply the result without restarting. Language and downloaded-file associations carry into the next episode. On Android, fontconfig can fall back to system fonts while the bundled Zanzibarr fonts preserve deterministic Arabic shaping and music symbols. OpenSubtitles requires your own consumer API key (and an account login for free-tier downloads). External files are local-player only, not forwarded to cast receivers.
 
 **Speaks your language**
 14 fully localized interfaces: English, Türkçe, Español, Deutsch, Français, Português, Italiano, Русский, 中文, 日本語, 한국어, हिन्दी, العربية and فارسی — with proper RTL layout. Dark and light themes, of course.
 
 **Built for the couch and the desk**
-Native apps for **macOS**, **Windows**, **Linux**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode), plus an unsigned iOS package for sideloading. The v2.0 release also includes **Samsung Tizen TV** and **LG webOS 26 Re:New+** preview packages with their native video players and the same lazy Rust streaming engine. One codebase, no Electron, no compromises.
+Native apps for **macOS**, **Windows**, **Linux**, **Android** and **Android TV** (leanback launcher, remote-friendly focus, hardware decode and an optional low-memory mode), plus an unsigned iOS package for sideloading. The v2.1 release also includes **Samsung Tizen TV** and **LG webOS 26 Re:New+** packages with their native video players and the same lazy Rust streaming engine. One codebase, no Electron, no compromises.
 
 **Your credentials stay yours**
 Your Usenet, indexer and OpenSubtitles logins live exclusively in the operating system's secure keychain — never in files, never in logs, never on a server. Save multiple NNTP accounts and make one active for streaming, or keep several indexers enabled for search. Zanzibarr is fully on-device: no Zanzibarr accounts, no telemetry, no cloud.
@@ -191,7 +189,10 @@ The **Linux** build links against the system libmpv — install the runtime firs
 - [x] Audio-language preference — remembered and applied across queue episodes
 - [x] Runtime HDR10+ detection — passive HEVC ST 2094-40 scan without extra fetches
 - [x] Signed, notarized & stapled macOS Apple Silicon distribution
-- [x] Samsung Tizen TV (6.0 and 10) + LG webOS 26 native players — preview packages in the v2.0 release; physical-device validation pending
+- [x] Samsung Tizen TV (6.0 and 10) + LG webOS 26 native players — test-signed/test-development packages in v2.1; physical-device validation pending
+- [x] Low-memory Android TV playback — smaller bounded caches/prefetch, two-connection profile and app-wide playback defaults
+- [x] Android TV text fields — D-pad focus without an unsolicited keyboard, OK to edit
+- [x] RAR QuickOpen/SERVICE tail compatibility + Android fontconfig subtitle fallback
 - [ ] TMDB + OMDb metadata
 - [ ] iOS TestFlight distribution
 - [ ] Android TV Play Store listing
