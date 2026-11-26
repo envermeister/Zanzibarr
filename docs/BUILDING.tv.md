@@ -166,5 +166,5 @@ The verifier extracts the engine from each TPK/IPK and checks ARM ELF, SONAME an
 - Flutter: 289 tests plus 9 skips and analysis, including TV audio preference, launcher, controls, fake native stream opening, queue transition and platform configuration tests.
 - Both isolated TV dependency profiles and both SDK analyzers pass.
 - The Tizen 6.0/GCC 9.2 and Tizen 10.0/GCC 14.2 engines were also built independently from CI. `readelf` confirmed ELF32/ARM, soft-float ABI and the expected SONAME, with no dynamic `libstdc++` dependency in either engine.
-- For v2.1, the TV workflow is dispatched against the release tag. All three downloaded Tizen 6.0 TPK, Tizen 10.0 TPK and webOS IPK artifacts must pass `tools/verify_tv_package.sh` again before they are uploaded to the release.
+- For v2.1, the TV workflow builds the release application sources with the current package verifier. All three downloaded Tizen 6.0 TPK, Tizen 10.0 TPK and webOS IPK artifacts must pass `tools/verify_tv_package.sh` again before they are uploaded to the release.
 - Real Samsung/LG TV installation, codec behavior, NNTP credentials, playback and remote behavior still require physical-device verification. Package/ABI verification does not establish on-device playback or hardware codec support.

@@ -13,7 +13,9 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 if [[ "$KIND" == "tizen" ]]; then
-  ENTRY="$(unzip -Z1 "$PKG" | awk '/librust_lib_zanzibarr.so/{print; exit}')"
+  # With pipefail, exiting awk on the first match can kill the producer with
+  # SIGPIPE. Consume the complete listing and print the first match at END.
+  ENTRY="$(unzip -Z1 "$PKG" | awk '/librust_lib_zanzibarr.so/{if (entry == "") entry = $0} END {print entry}')"
   test -n "$ENTRY" || {
     echo "error: Rust engine is missing from $PKG" >&2
     exit 1
@@ -24,12 +26,12 @@ else
   (
     cd "$TMP"
     ar x "$PKG"
-    ENTRY="$(tar -tzf data.tar.gz | awk '/librust_lib_zanzibarr.so/{print; exit}')"
+    ENTRY="$(tar -tzf data.tar.gz | awk '/librust_lib_zanzibarr.so/{if (entry == "") entry = $0} END {print entry}')"
     test -n "$ENTRY" || {
       echo "error: Rust engine is missing from $PKG" >&2
       exit 1
     }
-    CPP_ENTRY="$(tar -tzf data.tar.gz | awk '/libstdc\+\+.so.6/{print; exit}')"
+    CPP_ENTRY="$(tar -tzf data.tar.gz | awk '/libstdc\+\+.so.6/{if (entry == "") entry = $0} END {print entry}')"
     test -n "$CPP_ENTRY" || {
       echo "error: the bundled libstdc++.so.6 runtime is missing from $PKG" >&2
       exit 1
