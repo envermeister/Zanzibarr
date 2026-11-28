@@ -200,6 +200,48 @@ abstract class AppLocalizations {
   /// **'Advanced settings'**
   String get advancedSettings;
 
+  /// No description provided for @openInNewTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in new tab'**
+  String get openInNewTab;
+
+  /// No description provided for @closeTabTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Close tab'**
+  String get closeTabTooltip;
+
+  /// No description provided for @openInBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in browser'**
+  String get openInBrowser;
+
+  /// No description provided for @browserOpened.
+  ///
+  /// In en, this message translates to:
+  /// **'Opened in browser. Local playback is paused; codec support depends on the browser.'**
+  String get browserOpened;
+
+  /// No description provided for @browserOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the browser: {error}'**
+  String browserOpenFailed(String error);
+
+  /// No description provided for @sharpeningLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharpening'**
+  String get sharpeningLabel;
+
+  /// No description provided for @frameInterpolationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Frame interpolation'**
+  String get frameInterpolationLabel;
+
   /// No description provided for @play.
   ///
   /// In en, this message translates to:

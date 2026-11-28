@@ -10,3 +10,9 @@
 pub fn hdr10plus_detected() -> bool {
     crate::engine::hdr10plus::detected()
 }
+
+/// Belirli bir oynatma oturumunda HDR10+ dinamik meta verisi bulundu mu?
+/// Çoklu oynatma sekmeleri birbirlerinin bayrağını görmez.
+pub fn hdr10plus_detected_for(session_id: u64) -> bool {
+    crate::engine::hdr10plus::detected_for_session(session_id)
+}

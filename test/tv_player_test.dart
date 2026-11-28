@@ -54,7 +54,7 @@ void main() {
 
   test('PlayerLauncher uses the registered backend and file-picker policy', () {
     PlayerLauncher.register(
-      ({required nzbPath, initialEntryKey}) =>
+      ({key, required nzbPath, initialEntryKey, tabProfile, onRequestClose}) =>
           Text('$nzbPath/$initialEntryKey'),
       fileSelection: false,
     );

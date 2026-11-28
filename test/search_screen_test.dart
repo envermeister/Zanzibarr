@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zanzibarr/player/media_preferences.dart';
+import 'package:zanzibarr/player/playback_tabs.dart';
 import 'package:zanzibarr/search/search_history.dart';
 import 'package:zanzibarr/search/search_screen.dart';
 import 'package:zanzibarr/settings/indexer_settings.dart';
@@ -231,6 +233,32 @@ void main() {
     expect(usedUrl, 'https://indexer.example/getnzb/1');
     expect(usedName, 'Bir.Film.2024.2160p.WEB-DL.DV.HEVC-GRP');
     expect(downloadedPath, '/tmp/indirilen.nzb');
+  });
+
+  testWidgets('Sağ tık yeni sekme indirme akışını çalıştırır', (tester) async {
+    PlaybackTabsCoordinator.enable();
+    addTearDown(PlaybackTabsCoordinator.reset);
+    String? downloadedPath;
+    await tester.pumpWithL10n(
+      SearchScreen(
+        store: _completeStore,
+        searchFn: _fakeSearch,
+        downloadFn: (config, nzbUrl, suggestedName) async => '/tmp/new-tab.nzb',
+        onDownloaded: (path) => downloadedPath = path,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _enterQueryAndSearch(tester, 'film');
+
+    await tester.tap(
+      find.text('Bir.Film.2024.2160p.WEB-DL.DV.HEVC-GRP'),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni sekmede aç'), findsOneWidget);
+    await tester.tap(find.text('Yeni sekmede aç'));
+    await tester.pumpAndSettle();
+    expect(downloadedPath, '/tmp/new-tab.nzb');
   });
 
   testWidgets('İndirme hatası SnackBar ile gösterilir', (tester) async {

@@ -9,6 +9,18 @@
   "themeDark": "ダーク",
   "themeLight": "ライト",
   "advancedSettings": "詳細設定",
+  "openInNewTab": "Open in new tab",
+  "closeTabTooltip": "Close tab",
+  "openInBrowser": "Open in browser",
+  "browserOpened": "Opened in browser. Local playback is paused; codec support depends on the browser.",
+  "browserOpenFailed": "Could not open the browser: {error}",
+  "sharpeningLabel": "Sharpening",
+  "frameInterpolationLabel": "Frame interpolation",
+  "@browserOpenFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
   "play": "再生",
   "pause": "一時停止",
   "selectNzbAndPlay": "NZBを選択して再生",

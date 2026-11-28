@@ -1,9 +1,17 @@
 import 'package:flutter/widgets.dart';
 
+import 'playback_tab_profile.dart';
+
 /// Creates the platform's player without making the shared home/search UI
 /// depend on media_kit (desktop/mobile) or video_player (Tizen/webOS).
 typedef PlayerWidgetBuilder =
-    Widget Function({required String nzbPath, String? initialEntryKey});
+    Widget Function({
+      Key? key,
+      required String nzbPath,
+      String? initialEntryKey,
+      PlaybackTabProfile? tabProfile,
+      VoidCallback? onRequestClose,
+    });
 
 /// Runtime registry selected by each application entrypoint.
 ///
@@ -24,13 +32,25 @@ abstract final class PlayerLauncher {
     supportsFileSelection = fileSelection;
   }
 
-  static Widget create({required String nzbPath, String? initialEntryKey}) {
+  static Widget create({
+    Key? key,
+    required String nzbPath,
+    String? initialEntryKey,
+    PlaybackTabProfile? tabProfile,
+    VoidCallback? onRequestClose,
+  }) {
     final builder = _builder;
     if (builder == null) {
       throw StateError(
         'No player backend registered. Call PlayerLauncher.register() from the application entrypoint.',
       );
     }
-    return builder(nzbPath: nzbPath, initialEntryKey: initialEntryKey);
+    return builder(
+      key: key,
+      nzbPath: nzbPath,
+      initialEntryKey: initialEntryKey,
+      tabProfile: tabProfile,
+      onRequestClose: onRequestClose,
+    );
   }
 }

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/app_localizations.dart';
-import '../player/player_launcher.dart';
+import '../player/playback_tabs.dart';
 import '../settings/indexer_settings.dart';
 import '../settings/provider_settings.dart';
 import '../settings/settings_screen.dart';
@@ -480,11 +480,7 @@ class _SearchScreenState extends State<SearchScreen> {
       if (onDownloaded != null) {
         onDownloaded(path);
       } else {
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => PlayerLauncher.create(nzbPath: path),
-          ),
-        );
+        await PlaybackTabsCoordinator.open(context, path);
       }
     } catch (error) {
       if (!mounted) return;
@@ -705,6 +701,9 @@ class _SearchScreenState extends State<SearchScreen> {
         health: _healthStates[index],
         focusNode: index == 0 ? _firstResultFocusNode : null,
         onTap: () => _downloadAndPlay(index),
+        onOpenInNewTab: PlaybackTabsCoordinator.isEnabled
+            ? () => _downloadAndPlay(index)
+            : null,
       ),
     );
   }
@@ -739,12 +738,14 @@ class _SearchResultCard extends StatefulWidget {
     required this.onTap,
     this.health,
     this.focusNode,
+    this.onOpenInNewTab,
   });
 
   final SearchItemDto item;
   final bool busy;
   final bool enabled;
   final VoidCallback onTap;
+  final VoidCallback? onOpenInNewTab;
 
   /// Bu sonucun ön kontrol durumu; null = rozet yok.
   final _HealthState? health;
@@ -876,6 +877,31 @@ class _SearchResultCardState extends State<_SearchResultCard> {
     return '${days ~/ 365} y';
   }
 
+  Future<void> _openNewTabMenu(TapUpDetails details) async {
+    final overlay = Overlay.of(context).context.findRenderObject();
+    if (overlay is! RenderBox) return;
+    final position = overlay.globalToLocal(details.globalPosition);
+    await showMenu<void>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        PopupMenuItem<void>(
+          onTap: widget.onOpenInNewTab,
+          child: Row(
+            children: [
+              const Icon(Icons.tab_rounded, size: 18),
+              const SizedBox(width: 10),
+              Text(AppLocalizations.of(context).openInNewTab),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -900,6 +926,9 @@ class _SearchResultCardState extends State<_SearchResultCard> {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: widget.enabled ? widget.onTap : null,
+        onSecondaryTapUp: widget.enabled && widget.onOpenInNewTab != null
+            ? _openNewTabMenu
+            : null,
         focusNode: widget.focusNode,
         hoverColor: foreground.withValues(alpha: 0.045),
         onFocusChange: (focused) => setState(() => _focused = focused),

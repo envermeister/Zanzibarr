@@ -51,6 +51,30 @@ class AppLocalizationsTr extends AppLocalizations {
   String get advancedSettings => 'Gelişmiş ayarlar';
 
   @override
+  String get openInNewTab => 'Yeni sekmede aç';
+
+  @override
+  String get closeTabTooltip => 'Sekmeyi kapat';
+
+  @override
+  String get openInBrowser => 'Tarayıcıda aç';
+
+  @override
+  String get browserOpened =>
+      'Tarayıcıda açıldı. Yerel oynatma duraklatıldı; codec desteği tarayıcıya bağlıdır.';
+
+  @override
+  String browserOpenFailed(String error) {
+    return 'Tarayıcı açılamadı: $error';
+  }
+
+  @override
+  String get sharpeningLabel => 'Keskinleştirme';
+
+  @override
+  String get frameInterpolationLabel => 'Kare aradeğerleme';
+
+  @override
   String get play => 'Oynat';
 
   @override

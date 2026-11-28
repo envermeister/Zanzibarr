@@ -19,6 +19,20 @@ class _MemoryPreferenceStorage implements PlayerPreferenceStorage {
   }
 }
 
+class _DelayedMemoryPreferenceStorage extends _MemoryPreferenceStorage {
+  @override
+  Future<String?> read(String key) async {
+    await Future<void>.delayed(const Duration(milliseconds: 4));
+    return super.read(key);
+  }
+
+  @override
+  Future<void> write(String key, String value) async {
+    await Future<void>.delayed(const Duration(milliseconds: 4));
+    return super.write(key, value);
+  }
+}
+
 void main() {
   PlaybackHistoryEntry entry(
     String path, {
@@ -124,21 +138,35 @@ void main() {
     final store = PlaybackHistoryStore(storage: storage);
 
     await store.save(
-      entry('/media/paket.nzb', position: 100, entryKey: 'rar:e01', updatedAt: 1),
+      entry(
+        '/media/paket.nzb',
+        position: 100,
+        entryKey: 'rar:e01',
+        updatedAt: 1,
+      ),
     );
     await store.save(
-      entry('/media/paket.nzb', position: 250, entryKey: 'rar:e02', updatedAt: 2),
+      entry(
+        '/media/paket.nzb',
+        position: 250,
+        entryKey: 'rar:e02',
+        updatedAt: 2,
+      ),
     );
 
     expect(await store.load(), hasLength(2));
     expect(
-      (await store.entryFor('/media/paket.nzb', entryKey: 'rar:e01'))
-          ?.positionSeconds,
+      (await store.entryFor(
+        '/media/paket.nzb',
+        entryKey: 'rar:e01',
+      ))?.positionSeconds,
       100,
     );
     expect(
-      (await store.entryFor('/media/paket.nzb', entryKey: 'rar:e02'))
-          ?.positionSeconds,
+      (await store.entryFor(
+        '/media/paket.nzb',
+        entryKey: 'rar:e02',
+      ))?.positionSeconds,
       250,
     );
     // Anahtarsız arama bölüm kayıtlarını bulmaz.
@@ -153,7 +181,12 @@ void main() {
     // yoksa ana ekranda hedefi bulunamayan hayalet bir kart kalırdı.
     await store.save(entry('/media/paket.nzb', position: 300, updatedAt: 1));
     await store.save(
-      entry('/media/paket.nzb', position: 40, entryKey: 'rar:e01', updatedAt: 2),
+      entry(
+        '/media/paket.nzb',
+        position: 40,
+        entryKey: 'rar:e01',
+        updatedAt: 2,
+      ),
     );
 
     final entries = await store.load();
@@ -166,10 +199,20 @@ void main() {
     final store = PlaybackHistoryStore(storage: storage);
 
     await store.save(
-      entry('/media/paket.nzb', position: 100, entryKey: 'rar:e01', updatedAt: 1),
+      entry(
+        '/media/paket.nzb',
+        position: 100,
+        entryKey: 'rar:e01',
+        updatedAt: 1,
+      ),
     );
     await store.save(
-      entry('/media/paket.nzb', position: 250, entryKey: 'rar:e02', updatedAt: 2),
+      entry(
+        '/media/paket.nzb',
+        position: 250,
+        entryKey: 'rar:e02',
+        updatedAt: 2,
+      ),
     );
     await store.remove('/media/paket.nzb', entryKey: 'rar:e01');
 
@@ -202,10 +245,7 @@ void main() {
       expect(entries.single.nzbPath, '/media/paket.nzb');
       expect(entries.single.entryKey, 'rar:e01');
       expect(entries.single.title, 'bolum.mkv');
-      expect(
-        await store.watchedKeys('/media/paket.nzb'),
-        {'rar:e01'},
-      );
+      expect(await store.watchedKeys('/media/paket.nzb'), {'rar:e01'});
     });
 
     test('watchedKeys yalnız hedef NZB’nin anahtarlarını döndürür', () async {
@@ -216,14 +256,8 @@ void main() {
       await store.add(watched('/media/a.nzb', key: 'rar:e02'));
       await store.add(watched('/media/b.nzb', key: 'rar:e01'));
 
-      expect(
-        await store.watchedKeys('/media/a.nzb'),
-        {'rar:e01', 'rar:e02'},
-      );
-      expect(
-        await store.watchedKeys('/media/b.nzb'),
-        {'rar:e01'},
-      );
+      expect(await store.watchedKeys('/media/a.nzb'), {'rar:e01', 'rar:e02'});
+      expect(await store.watchedKeys('/media/b.nzb'), {'rar:e01'});
       expect(await store.watchedKeys('/media/yok.nzb'), isEmpty);
     });
 
@@ -287,6 +321,28 @@ void main() {
       await store.remove('/media/a.nzb');
       expect(await store.watchedKeys('/media/a.nzb'), isEmpty);
       expect(await store.watchedKeys('/media/b.nzb'), {'rar:e01'});
+    });
+
+    test('eşzamanlı sekme mutasyonları kayıp kayıt üretmez', () async {
+      final storage = _DelayedMemoryPreferenceStorage();
+      final history = PlaybackHistoryStore(storage: storage);
+      final watchedStore = WatchedEpisodeStore(storage: storage);
+
+      await Future.wait([
+        history.save(entry('/media/a.nzb', updatedAt: 1)),
+        history.save(entry('/media/b.nzb', updatedAt: 2)),
+        history.save(entry('/media/c.nzb', updatedAt: 3)),
+        watchedStore.add(watched('/media/a.nzb', key: 'rar:e01', watchedAt: 1)),
+        watchedStore.add(watched('/media/b.nzb', key: 'rar:e02', watchedAt: 2)),
+      ]);
+
+      expect((await history.load()).map((item) => item.nzbPath).toSet(), {
+        '/media/a.nzb',
+        '/media/b.nzb',
+        '/media/c.nzb',
+      });
+      expect(await watchedStore.watchedKeys('/media/a.nzb'), {'rar:e01'});
+      expect(await watchedStore.watchedKeys('/media/b.nzb'), {'rar:e02'});
     });
   });
 }

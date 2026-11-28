@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'player/player_format.dart';
 import 'player/playback_history.dart';
+import 'player/playback_tabs.dart';
 import 'player/player_launcher.dart';
 import 'update/update_service.dart';
 import 'search/search_screen.dart';
@@ -449,12 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openPath(String path, {String? entryKey}) async {
-    await Navigator.of(context).push(
-      _fadeRoute(
-        PlayerLauncher.create(nzbPath: path, initialEntryKey: entryKey),
-        opaque: true,
-      ),
-    );
+    await PlaybackTabsCoordinator.open(context, path, entryKey: entryKey);
     // Oynatıcıdan dönüşte izleme ilerlemesi tazelenir.
     await _loadHistory();
   }

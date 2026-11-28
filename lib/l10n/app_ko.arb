@@ -9,6 +9,18 @@
   "themeDark": "다크",
   "themeLight": "라이트",
   "advancedSettings": "고급 설정",
+  "openInNewTab": "Open in new tab",
+  "closeTabTooltip": "Close tab",
+  "openInBrowser": "Open in browser",
+  "browserOpened": "Opened in browser. Local playback is paused; codec support depends on the browser.",
+  "browserOpenFailed": "Could not open the browser: {error}",
+  "sharpeningLabel": "Sharpening",
+  "frameInterpolationLabel": "Frame interpolation",
+  "@browserOpenFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
   "play": "재생",
   "pause": "일시정지",
   "selectNzbAndPlay": "NZB 선택 후 재생",

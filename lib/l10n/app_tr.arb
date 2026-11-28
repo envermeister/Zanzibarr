@@ -13,6 +13,18 @@
   "themeDark": "Koyu",
   "themeLight": "Açık",
   "advancedSettings": "Gelişmiş ayarlar",
+  "openInNewTab": "Yeni sekmede aç",
+  "closeTabTooltip": "Sekmeyi kapat",
+  "openInBrowser": "Tarayıcıda aç",
+  "browserOpened": "Tarayıcıda açıldı. Yerel oynatma duraklatıldı; codec desteği tarayıcıya bağlıdır.",
+  "browserOpenFailed": "Tarayıcı açılamadı: {error}",
+  "sharpeningLabel": "Keskinleştirme",
+  "frameInterpolationLabel": "Kare aradeğerleme",
+  "@browserOpenFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
   "play": "Oynat",
   "pause": "Duraklat",
   "selectNzbAndPlay": "NZB seç ve oynat",

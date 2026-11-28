@@ -10,24 +10,31 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../cast/cast_device_picker.dart';
 import '../cast/cast_service.dart';
 import '../l10n/app_localizations.dart';
 import '../settings/opensubtitles_settings.dart';
 import '../settings/provider_settings.dart';
-import '../src/rust/api/hdr10.dart' show hdr10PlusDetected;
+import '../src/rust/api/hdr10.dart' show hdr10PlusDetectedFor;
 import '../src/rust/api/repair.dart';
 import '../src/rust/api/streaming.dart';
 import '../src/rust/api/subtitles.dart'
-    show OpenSubtitlesConfigDto, SubtitleDto, downloadOpensubtitles, searchOpensubtitles;
+    show
+        OpenSubtitlesConfigDto,
+        SubtitleDto,
+        downloadOpensubtitles,
+        searchOpensubtitles;
 import 'advanced_playback_controller.dart';
+import 'browser_stream.dart';
 import 'entry_picker.dart';
 import 'gyuni_player_controls.dart';
 import 'media_preferences.dart';
 import 'picture_in_picture_window.dart';
 import 'playback_history.dart';
 import 'playback_startup_guard.dart';
+import 'playback_tab_profile.dart';
 import 'player_keyboard_controls.dart';
 import 'smart_canvas.dart';
 import 'smart_canvas_overlay.dart';
@@ -52,6 +59,9 @@ class PlayerScreen extends StatefulWidget {
     this.watchedStore,
     this.castService,
     this.initialEntryKey,
+    this.tabProfile,
+    this.onRequestClose,
+    this.browserLauncher,
     this.osStore,
     this.osSearchFn,
     this.osDownloadFn,
@@ -65,6 +75,16 @@ class PlayerScreen extends StatefulWidget {
   /// seçici anahtarı; verilirse çok parçalı NZB'lerde seçici diyalog
   /// atlanır ve doğrudan bu aday oynatılır.
   final String? initialEntryKey;
+
+  /// Masaüstü çoklu sekme çalışma alanındaki bağlantı bütçesi. Tek route
+  /// modunda null kalır ve sağlayıcının tam limiti kullanılır.
+  final PlaybackTabProfile? tabProfile;
+
+  /// Sekme kapatma isteği. Null ise mevcut route-pop davranışı korunur.
+  final VoidCallback? onRequestClose;
+
+  /// Testlerde dış tarayıcı çağrısını doğrulamak için enjekte edilir.
+  final BrowserLauncher? browserLauncher;
 
   /// Testlerde sahte depo enjekte etmek için; null ise gerçek depo kullanılır.
   final ProviderSettingsStore? store;
@@ -105,10 +125,10 @@ class PlayerScreen extends StatefulWidget {
   final Duration streamPreparationTimeout;
 
   @override
-  State<PlayerScreen> createState() => _PlayerScreenState();
+  State<PlayerScreen> createState() => PlayerScreenState();
 }
 
-class _PlayerScreenState extends State<PlayerScreen>
+class PlayerScreenState extends State<PlayerScreen>
     with WidgetsBindingObserver
     implements PlayerKeyboardHandler {
   static const _minimumCanvasExtent =
@@ -153,6 +173,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   final _videoKey = GlobalKey<VideoState>();
   final _playButtonFocusNode = FocusNode(debugLabel: 'Oynat/Duraklat düğmesi');
+
   /// TV kumandası modunda odak kökü: kontroller gizlenirken odak buraya geri
   /// çekilir; aksi halde odak kaybolur ve kumanda tuşları hiçbir yere ulaşmaz.
   final _keyboardFocusNode = FocusNode(debugLabel: 'Oynatıcı klavye kökü');
@@ -196,6 +217,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   Track _track = const Track();
   bool _controlBusy = false;
   bool _disposing = false;
+  bool _backgroundPauseRequested = false;
+  bool _resumeWhenForeground = false;
   bool _isPictureInPicture = false;
   bool _controlsVisible = true;
   bool _playing = false;
@@ -238,6 +261,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   Timer? _previewDismissTimer;
   Timer? _fastScanTimer;
   Timer? _preferencePersistTimer;
+
   /// Oynatma sırasında gelen mpv hata olaylarını erteleyen zamanlayıcı:
   /// zararsız olaylar (ör. donanım codec'i açılamayıp yazılıma düşülmesi)
   /// oynatma sürerken kullanıcıya bant göstermemeli.
@@ -306,6 +330,72 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _lowMemoryMode = false;
   // Video sığdırma kipi: false=contain (oran korunur), true=cover (doldur).
   bool _videoFill = false;
+
+  String get displayName {
+    final filename = _info?.filename;
+    if (filename != null && filename.isNotEmpty) return filename;
+    return widget.nzbPath
+        .split(RegExp(r'[\\/]'))
+        .where((part) => part.isNotEmpty)
+        .last;
+  }
+
+  /// Pauses this tab without closing its Rust session or losing its position.
+  Future<void> pauseForBackground() async {
+    if (_disposing) return;
+    _backgroundPauseRequested = true;
+    _resumeWhenForeground = _playing || !_playbackReady;
+    await _saveHistoryPosition();
+    await _player.pause();
+  }
+
+  /// Restores playback only if this tab was playing (or starting) when hidden.
+  Future<void> resumeForBackground() async {
+    _backgroundPauseRequested = false;
+    if (!_resumeWhenForeground || !_playbackReady) return;
+    _resumeWhenForeground = false;
+    try {
+      if (_castSession case final session?) {
+        await session.play();
+      } else {
+        await _player.play();
+      }
+    } catch (error) {
+      _showControlError(error);
+    }
+  }
+
+  /// Opens the active loopback stream in the external browser. The LAN/cast
+  /// token is never shared; the Rust session stays alive for browser seeking.
+  Future<void> openInBrowser() async {
+    final stream = _nativeStream;
+    if (stream == null) return;
+    try {
+      final launcher =
+          widget.browserLauncher ??
+          (target) => launchUrl(target, mode: LaunchMode.externalApplication);
+      final opened = await openStreamInBrowser(
+        streamUrl: stream.url,
+        launcher: launcher,
+      );
+      if (!opened) return;
+      await _saveHistoryPosition();
+      await _player.pause();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).browserOpened)),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).browserOpenFailed(error.toString()),
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -449,7 +539,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         );
         if (entryKey == null) {
           // Kullanıcı vazgeçti: oynatıcıyı hiç başlatmadan geri dön.
-          if (mounted && Navigator.of(context).canPop()) {
+          if (widget.onRequestClose case final close?) {
+            close();
+          } else if (mounted && Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
           }
           return;
@@ -490,6 +582,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   /// (konum, izler, önbellek, devam kaydı) burada sıfırlanır; sahne-bazlı
   /// tercihler (zoom, altyazı, renk) korunur ve yeniden uygulanır.
   Future<void> _openEntry(ProviderSettings settings, String? entryKey) async {
+    // Bölüm geçişinde yalnız bu ekranın eski oturumu kapanır; diğer
+    // sekmelerin session'ları bağımsız kalır.
+    await _releaseNativeStream();
     _resolvedEntryKey = entryKey;
     _pendingErrorTimer?.cancel();
     _pendingErrorTimer = null;
@@ -528,8 +623,11 @@ class _PlayerScreenState extends State<PlayerScreen>
         username: settings.username,
         password: settings.password,
         maxConnections: _lowMemoryMode
-            ? math.min(settings.maxConnections, 2)
-            : settings.maxConnections,
+            ? math.min(
+                widget.tabProfile?.maxConnections ?? settings.maxConnections,
+                2,
+              )
+            : widget.tabProfile?.maxConnections ?? settings.maxConnections,
       ),
       nzbPath: widget.nzbPath,
       entryKey: entryKey,
@@ -982,6 +1080,11 @@ class _PlayerScreenState extends State<PlayerScreen>
     _configurePeriodicInfoTimer();
     _revealControls();
     _startHistoryTracking();
+    if (_backgroundPauseRequested) {
+      unawaited(_player.pause());
+    } else if (_resumeWhenForeground) {
+      unawaited(resumeForBackground());
+    }
     _debugProbeDumpIfRequested();
   }
 
@@ -1003,10 +1106,18 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     debugPrint('PROBE: === VIDEO ===');
     for (final p in [
-      'video-params/w', 'video-params/h', 'video-params/dw',
-      'video-params/dh', 'video-params/aspect', 'video-params/par',
-      'video-params/pixelformat', 'video-out-params/w', 'video-out-params/h',
-      'video-out-params/aspect', 'dwidth', 'dheight',
+      'video-params/w',
+      'video-params/h',
+      'video-params/dw',
+      'video-params/dh',
+      'video-params/aspect',
+      'video-params/par',
+      'video-params/pixelformat',
+      'video-out-params/w',
+      'video-out-params/h',
+      'video-out-params/aspect',
+      'dwidth',
+      'dheight',
     ]) {
       debugPrint('PROBE: $p = ${await prop(p)}');
     }
@@ -1024,8 +1135,12 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
     debugPrint('PROBE: aid = ${await prop('aid')}');
     debugPrint('PROBE: current-ao = ${await prop('current-ao')}');
-    debugPrint('PROBE: audio-params/samplerate = ${await prop('audio-params/samplerate')}');
-    debugPrint('PROBE: audio-params/channels = ${await prop('audio-params/channels')}');
+    debugPrint(
+      'PROBE: audio-params/samplerate = ${await prop('audio-params/samplerate')}',
+    );
+    debugPrint(
+      'PROBE: audio-params/channels = ${await prop('audio-params/channels')}',
+    );
     debugPrint('PROBE: volume = ${await prop('volume')}');
   }
 
@@ -1052,10 +1167,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Son %3'e ulaşılmış içerik izlenmiş sayılır; kayıt düşülüp baştan
       // başlanır.
       if (entry.isCompleted) {
-        await _historyStore.remove(
-          widget.nzbPath,
-          entryKey: _resolvedEntryKey,
-        );
+        await _historyStore.remove(widget.nzbPath, entryKey: _resolvedEntryKey);
         return;
       }
       final target = entry.position;
@@ -1270,9 +1382,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       await _player.pause();
       if (!mounted) return;
       setState(() {});
-      _showCastMessage(
-        AppLocalizations.of(context).castPlayingOn(device.name),
-      );
+      _showCastMessage(AppLocalizations.of(context).castPlayingOn(device.name));
     } catch (error) {
       if (!mounted) return;
       _showCastMessage(
@@ -1490,9 +1600,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     await _tryNativePreference(
       () => _playback.setSubtitleColor(_subtitleColor),
     );
-    await _tryNativePreference(
-      () => _playback.setSubtitleFont(_subtitleFont),
-    );
+    await _tryNativePreference(() => _playback.setSubtitleFont(_subtitleFont));
     await _tryNativePreference(
       () => _playback.setAudioDelay(
         _clampDuration(
@@ -1915,9 +2023,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       final file = await openFile(acceptedTypeGroups: [typeGroup]);
       final path = file?.path;
       if (file == null || path == null || path.isEmpty) return;
-      await _player.setSubtitleTrack(
-        SubtitleTrack.uri(path, title: file.name),
-      );
+      await _player.setSubtitleTrack(SubtitleTrack.uri(path, title: file.name));
     } catch (error) {
       _showControlError(error);
     }
@@ -2409,7 +2515,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   Future<void> _checkHdr10Plus(Timer timer) async {
     bool detected;
     try {
-      detected = await hdr10PlusDetected();
+      final sessionId = _nativeStream?.sessionId;
+      if (sessionId == null) return;
+      detected = await hdr10PlusDetectedFor(sessionId: sessionId);
     } catch (_) {
       timer.cancel();
       return;
@@ -2683,7 +2791,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(AppLocalizations.of(context).errorControlFailed('$error')),
+        content: Text(
+          AppLocalizations.of(context).errorControlFailed('$error'),
+        ),
       ),
     );
   }
@@ -2818,7 +2928,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       await state!.exitFullscreen();
     }
     if (_isPictureInPicture) await _togglePictureInPicture();
-    if (mounted) await Navigator.of(context).maybePop();
+    if (widget.onRequestClose case final close?) {
+      close();
+    } else if (mounted) {
+      await Navigator.of(context).maybePop();
+    }
   }
 
   /// Hata ekranındaki "PAR2 ile onar" akışı: oturum başlatılır, ilerleme
@@ -2842,14 +2956,19 @@ class _PlayerScreenState extends State<PlayerScreen>
         username: settings.username,
         password: settings.password,
         maxConnections: _lowMemoryMode
-            ? math.min(settings.maxConnections, 2)
-            : settings.maxConnections,
+            ? math.min(
+                widget.tabProfile?.maxConnections ?? settings.maxConnections,
+                2,
+              )
+            : widget.tabProfile?.maxConnections ?? settings.maxConnections,
       ),
       nzbPath: widget.nzbPath,
     );
     _repairSessionId = sessionId;
     _repairPollTimer?.cancel();
-    _repairPollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
+    _repairPollTimer = Timer.periodic(const Duration(milliseconds: 500), (
+      _,
+    ) async {
       final progress = await repairProgress(sessionId: sessionId);
       if (!mounted || !_repairActive) return;
       setState(() => _repairProgress = progress);
@@ -2917,9 +3036,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   void _showPictureInPictureUnavailable() {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(AppLocalizations.of(context).errorPipUnavailable),
-      ),
+      SnackBar(content: Text(AppLocalizations.of(context).errorPipUnavailable)),
     );
   }
 
@@ -3271,6 +3388,32 @@ class _PlayerScreenState extends State<PlayerScreen>
                         ),
                       ),
                       _TuningRow(
+                        label: l10n.sharpeningLabel,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Slider(
+                                value: _playback.sharpening,
+                                min: 0,
+                                max: 1,
+                                divisions: 10,
+                                onChanged: (value) =>
+                                    unawaited(refresh(_setSharpening(value))),
+                              ),
+                            ),
+                            Text('${(_playback.sharpening * 100).round()}%'),
+                          ],
+                        ),
+                      ),
+                      _TuningRow(
+                        label: l10n.frameInterpolationLabel,
+                        child: Switch(
+                          value: _playback.frameInterpolation,
+                          onChanged: (value) =>
+                              unawaited(refresh(_setFrameInterpolation(value))),
+                        ),
+                      ),
+                      _TuningRow(
                         label: l10n.audioPresetLabel,
                         child: SegmentedButton<AudioPreset>(
                           style: compactSegmentStyle,
@@ -3508,11 +3651,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       ),
       // inactive: DV kipi seçili ama platform desteklemiyor (Windows/Linux)
       // ya da filtre henüz kurulmadı; satır göstermeye gerek yok.
-      DvReshapeStatus.inactive => (
-        Icons.info_outline,
-        Colors.white54,
-        '',
-      ),
+      DvReshapeStatus.inactive => (Icons.info_outline, Colors.white54, ''),
     };
     if (status == DvReshapeStatus.inactive) return const SizedBox.shrink();
     final row = Padding(
@@ -3566,6 +3705,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       () => _playback.setUpscalingPreset(preset),
     );
     if (applied) await _persistPreferences();
+  }
+
+  Future<void> _setSharpening(double value) async {
+    await _runControl(() => _playback.setSharpening(value));
+  }
+
+  Future<void> _setFrameInterpolation(bool enabled) async {
+    await _runControl(() => _playback.setFrameInterpolation(enabled));
   }
 
   Future<void> _setAudioPreset(AudioPreset preset) async {
@@ -3733,11 +3880,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                     isPictureInPicture: _isPictureInPicture,
                     canvasActive: _canvasEditing,
                     subtitleControlsActive: _subtitleControlsVisible,
-                    pictureInPictureSupported: _pictureInPictureWindow
-                        .isSupported,
+                    pictureInPictureSupported:
+                        _pictureInPictureWindow.isSupported,
                     castAvailable: _castAvailable,
                     casting: _casting,
                     onCast: _onCastButton,
+                    onOpenBrowser: openInBrowser,
                     playButtonFocusNode: _playButtonFocusNode,
                     onActivity: _revealControls,
                     onVideoTap: _touchPrimary
@@ -3857,10 +4005,7 @@ UpscalingPreset _upscalingPresetFromName(String value) => switch (value) {
 /// başlar ("en-US" etiketi "en" tercihini karşılar); birebir eşleşme her
 /// zaman alt kod eşleşmesinden önce gelir. 'auto'/'no' ve harici dosya
 /// kanalları değerlendirilmez; uygun kanal yoksa null döner.
-AudioTrack? pickAudioTrackByLanguage(
-  List<AudioTrack> tracks,
-  String language,
-) {
+AudioTrack? pickAudioTrackByLanguage(List<AudioTrack> tracks, String language) {
   AudioTrack? prefixMatch;
   for (final track in tracks) {
     if (track.id == 'auto' || track.id == 'no' || track.uri) continue;
@@ -3868,8 +4013,7 @@ AudioTrack? pickAudioTrackByLanguage(
     if (label.isEmpty) continue;
     if (label == language) return track;
     if (prefixMatch == null &&
-        (label.startsWith('$language-') ||
-            language.startsWith('$label-'))) {
+        (label.startsWith('$language-') || language.startsWith('$label-'))) {
       prefixMatch = track;
     }
   }
@@ -4018,7 +4162,10 @@ class _ErrorView extends StatelessWidget {
                 child: Text(
                   l10n.repairFailed(repairError!),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFFFF9F0A), fontSize: 12),
+                  style: const TextStyle(
+                    color: Color(0xFFFF9F0A),
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],

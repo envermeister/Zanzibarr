@@ -13,7 +13,7 @@
   <a href="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml"><img src="https://github.com/envermeister/zanzibarr/actions/workflows/android-build.yml/badge.svg" alt="Android build"></a>
   <a href="https://github.com/envermeister/zanzibarr/releases/latest"><img src="https://img.shields.io/github/v/release/envermeister/zanzibarr?label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux%20%C2%B7%20Android%20%C2%B7%20Android%20TV%20%C2%B7%20iOS%20%C2%B7%20Tizen%20%C2%B7%20webOS-blue" alt="platforms">
-  <img src="https://img.shields.io/badge/tests-334%20Rust%20%2B%20289%20Flutter-brightgreen" alt="tests">
+  <img src="https://img.shields.io/badge/tests-339%20Rust%20%2B%20299%20Flutter-brightgreen" alt="tests">
   <a href="https://buymeacoffee.com/envermeister"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support%20Zanzibarr-FFDD00?logo=buy-me-a-coffee&logoColor=black" alt="Support on Buy Me a Coffee"></a>
   <a href="https://ko-fi.com/envermeister"><img src="https://img.shields.io/badge/Ko--fi-support%20Zanzibarr-F16061?logo=ko-fi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>

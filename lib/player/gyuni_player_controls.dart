@@ -59,6 +59,7 @@ class GyuniPlayerChrome extends StatelessWidget {
     this.castAvailable = false,
     this.casting = false,
     this.onCast,
+    this.onOpenBrowser,
     this.engineBadge,
     this.onLoadExternalAudio,
     this.onLoadExternalSubtitle,
@@ -85,6 +86,9 @@ class GyuniPlayerChrome extends StatelessWidget {
 
   /// Cast düğmesi callback'i: cast yoksa cihaz seçici, varsa durum menüsü.
   final VoidCallback? onCast;
+
+  /// Aktif loopback stream'i dış tarayıcıda açar; null ise düğme gizlenir.
+  final VoidCallback? onOpenBrowser;
   final String filename;
   final String status;
   final String? engineBadge;
@@ -222,6 +226,7 @@ class GyuniPlayerChrome extends StatelessWidget {
                           castAvailable: castAvailable,
                           casting: casting,
                           onCast: onCast,
+                          onOpenBrowser: onOpenBrowser,
                           isPictureInPicture: isPictureInPicture,
                           onClose: onClose,
                           onToggleCanvas: onToggleCanvas,
@@ -431,6 +436,7 @@ class _TopToolbar extends StatelessWidget {
     required this.castAvailable,
     required this.casting,
     required this.onCast,
+    required this.onOpenBrowser,
     required this.onClose,
     required this.onToggleCanvas,
     required this.onToggleSubtitleControls,
@@ -450,6 +456,7 @@ class _TopToolbar extends StatelessWidget {
   final bool castAvailable;
   final bool casting;
   final VoidCallback? onCast;
+  final VoidCallback? onOpenBrowser;
   final VoidCallback onClose;
   final VoidCallback onToggleCanvas;
   final VoidCallback onToggleSubtitleControls;
@@ -552,6 +559,12 @@ class _TopToolbar extends StatelessWidget {
                         tooltip: l10n.castTooltip,
                         selected: casting,
                         onPressed: ready ? onCast : null,
+                      ),
+                    if (onOpenBrowser != null)
+                      _CompactIconButton(
+                        icon: Icons.open_in_browser_rounded,
+                        tooltip: l10n.openInBrowser,
+                        onPressed: ready ? onOpenBrowser : null,
                       ),
                     if (pictureInPictureSupported)
                       _CompactIconButton(

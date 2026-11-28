@@ -80,6 +80,21 @@ where
     S: RangeSource,
     F: std::future::Future<Output = ()> + Send,
 {
+    serve_until_with_session(listener, source, required_prefix, shutdown, 0).await
+}
+
+/// [`serve_until`]'in oturum kimlikli HDR10+ taramalı sürümü.
+pub async fn serve_until_with_session<S, F>(
+    listener: TcpListener,
+    source: Arc<S>,
+    required_prefix: Option<Arc<str>>,
+    shutdown: F,
+    session_id: u64,
+) -> io::Result<()>
+where
+    S: RangeSource,
+    F: std::future::Future<Output = ()> + Send,
+{
     let mut connections = JoinSet::new();
     let mut shutdown = Box::pin(shutdown);
 
@@ -99,7 +114,7 @@ where
                 let required_prefix = required_prefix.clone();
                 connections.spawn(async move {
                     // Bağlantı hatalarını (player erken kapatması vb.) yut.
-                    let _ = handle_connection(stream, source, required_prefix).await;
+                    let _ = handle_connection(stream, source, required_prefix, session_id).await;
                 });
             }
         }
@@ -123,6 +138,7 @@ async fn handle_connection<S: RangeSource>(
     mut stream: TcpStream,
     source: Arc<S>,
     required_prefix: Option<Arc<str>>,
+    session_id: u64,
 ) -> io::Result<()> {
     let head_bytes = match read_head(&mut stream).await? {
         Some(bytes) => bytes,
@@ -181,7 +197,7 @@ async fn handle_connection<S: RangeSource>(
             if !is_head && total > 0 {
                 // Gövde taramalı yazma ucundan geçer: HDR10+ SEI'si sunucuya
                 // giden baytlardan yakalanır (mpv bu sinyali vermez).
-                let mut sink = ScanSink::new(stream, 0);
+                let mut sink = ScanSink::new_for_session(stream, 0, session_id);
                 source.write_range(0..total, &mut sink).await?;
                 sink.flush().await?;
             } else {
@@ -205,7 +221,7 @@ async fn handle_connection<S: RangeSource>(
             stream.write_all(header.as_bytes()).await?;
             stream.flush().await?;
             if !is_head {
-                let mut sink = ScanSink::new(stream, range.start);
+                let mut sink = ScanSink::new_for_session(stream, range.start, session_id);
                 source.write_range(range, &mut sink).await?;
                 sink.flush().await?;
             } else {
@@ -794,8 +810,8 @@ mod tests {
         crate::engine::hdr10plus::reset();
         let mut data = vec![0u8; 8192];
         let sei: Vec<u8> = [
-            0x00, 0x00, 0x00, 0x01, 0x4E, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-            0xFF, 0xFF, 0xFF, 0x36, 0x03, 0x00, 0x01, 0x02, 0x80,
+            0x00, 0x00, 0x00, 0x01, 0x4E, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0x36, 0x03, 0x00, 0x01, 0x02, 0x80,
         ]
         .to_vec();
         data[1024..1024 + sei.len()].copy_from_slice(&sei);

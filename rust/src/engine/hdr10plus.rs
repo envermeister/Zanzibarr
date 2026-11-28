@@ -14,7 +14,8 @@
 //! için tespit yapılamaz (bilinçli sınır; arama sonuçlarındaki release-adı
 //! rozeti o yaygınlığı zaten taşır).
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::HashSet;
+use std::sync::Mutex;
 
 /// Aranan tam işaret: start kodunun son baytı (`01`) + HEVC önek-SEI
 /// başlığı (`0x4E 0x01`) + payload türü 2094 kodlaması (`0xFF`×8 + `0x36`).
@@ -30,26 +31,45 @@ const START_CODE_ZEROES: [u8; 2] = [0x00, 0x00];
 /// Akışın taranan ilk penceresi.
 pub const SCAN_WINDOW_BYTES: u64 = 32 * 1024 * 1024;
 
-static DETECTED: AtomicBool = AtomicBool::new(false);
+static DETECTED: Mutex<Option<HashSet<u64>>> = Mutex::new(None);
 
 /// Global bayrak, paralel koşan birim testlerde paylaşımlıdır; bayrağı
 /// sıfırlayan/atan tüm testler bu kitle alınır (server.rs e2e testi dahil).
 #[cfg(test)]
 pub static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// Yeni bir akış oturumu başlarken bayrağı sıfırla (streaming API'si
-/// oturum kurulumunda çağırır).
+/// Tek akışlı/test oturumu (0) için geriye uyumlu sıfırlama.
 pub fn reset() {
-    DETECTED.store(false, Ordering::Release);
+    reset_for_session(0);
 }
 
-/// Izlenen akışta şimdiye dek HDR10+ SEI'si görüldü mü?
+/// Yeni bir akış oturumu başlarken yalnız onun bayrağını sıfırla.
+pub fn reset_for_session(session_id: u64) {
+    if let Some(detected) = DETECTED.lock().expect("hdr10+ durumu").as_mut() {
+        detected.remove(&session_id);
+    }
+}
+
+/// Tek akışlı/test oturumu için geriye uyumlu sorgu.
 pub fn detected() -> bool {
-    DETECTED.load(Ordering::Acquire)
+    detected_for_session(0)
 }
 
-fn mark_detected() {
-    DETECTED.store(true, Ordering::Release);
+/// İzlenen akışta şimdiye dek HDR10+ SEI'si görüldü mü?
+pub fn detected_for_session(session_id: u64) -> bool {
+    DETECTED
+        .lock()
+        .expect("hdr10+ durumu")
+        .as_ref()
+        .is_some_and(|detected| detected.contains(&session_id))
+}
+
+fn mark_detected(session_id: u64) {
+    DETECTED
+        .lock()
+        .expect("hdr10+ durumu")
+        .get_or_insert_with(HashSet::new)
+        .insert(session_id);
 }
 
 /// Saf tarama: `tail` mutlak `chunk_absolute_offset`'ten önceki son
@@ -57,6 +77,15 @@ fn mark_detected() {
 /// ofsetten başlar. İşaret bulunursa bayrak atanır ve işaretin mutlak
 /// dosya ofseti döner.
 pub fn scan_chunk(chunk_absolute_offset: u64, tail: &[u8], chunk: &[u8]) -> Option<u64> {
+    scan_chunk_for_session(0, chunk_absolute_offset, tail, chunk)
+}
+
+fn scan_chunk_for_session(
+    session_id: u64,
+    chunk_absolute_offset: u64,
+    tail: &[u8],
+    chunk: &[u8],
+) -> Option<u64> {
     let mut haystack = Vec::with_capacity(tail.len() + chunk.len());
     haystack.extend_from_slice(tail);
     haystack.extend_from_slice(chunk);
@@ -69,10 +98,9 @@ pub fn scan_chunk(chunk_absolute_offset: u64, tail: &[u8], chunk: &[u8]) -> Opti
         let position = from + relative;
         // Start kodu doğrulaması: işaretten önceki iki bayt 00 00.
         if position >= 2 && haystack[position - 2..position] == START_CODE_ZEROES {
-            let absolute =
-                chunk_absolute_offset as i64 + position as i64 - tail.len() as i64;
+            let absolute = chunk_absolute_offset as i64 + position as i64 - tail.len() as i64;
             if absolute >= 0 {
-                mark_detected();
+                mark_detected(session_id);
                 return Some(absolute as u64);
             }
         }
@@ -103,11 +131,24 @@ pub struct ScanSink<W> {
     window: u64,
     tail: Vec<u8>,
     active: bool,
+    session_id: u64,
 }
 
 impl<W> ScanSink<W> {
     pub fn new(inner: W, start_offset: u64) -> Self {
         Self::new_with_window(inner, start_offset, SCAN_WINDOW_BYTES)
+    }
+
+    pub fn new_for_session(inner: W, start_offset: u64, session_id: u64) -> Self {
+        let active = start_offset < SCAN_WINDOW_BYTES;
+        Self {
+            inner,
+            offset: start_offset,
+            window: SCAN_WINDOW_BYTES,
+            tail: Vec::new(),
+            active,
+            session_id,
+        }
     }
 
     pub(crate) fn new_with_window(inner: W, start_offset: u64, window: u64) -> Self {
@@ -118,6 +159,7 @@ impl<W> ScanSink<W> {
             window,
             tail: Vec::new(),
             active,
+            session_id: 0,
         }
     }
 
@@ -130,10 +172,9 @@ impl<W> ScanSink<W> {
         }
         // Pencere kesin taranan üst sınırdır: onun ötesindeki baytlar hiç
         // aranmaz (ofset gerçek yazma konumu olarak akar).
-        let scan_len = (self.window - self.offset)
-            .min(written.len() as u64) as usize;
+        let scan_len = (self.window - self.offset).min(written.len() as u64) as usize;
         let scan = &written[..scan_len];
-        if scan_chunk(self.offset, &self.tail, scan).is_some() {
+        if scan_chunk_for_session(self.session_id, self.offset, &self.tail, scan).is_some() {
             self.active = false;
             return;
         }
@@ -185,9 +226,7 @@ mod tests {
     use super::*;
 
     const SEI_HEADER: [u8; 2] = [0x4E, 0x01];
-    const PAYLOAD_TYPE_2094: [u8; 9] = [
-        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x36,
-    ];
+    const PAYLOAD_TYPE_2094: [u8; 9] = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x36];
 
     /// Sentetik HDR10+ SEI NAL'i: start kodu + baslik + tur kodlamasi +
     /// kisa bir govde.
@@ -218,6 +257,22 @@ mod tests {
         assert_eq!(offset, Some(103)); // start kodunun 01 bayti
         assert!(detected());
         reset();
+    }
+
+    #[test]
+    fn session_bayraklari_birbirini_etkilemez() {
+        let _guard = super::TEST_LOCK.lock().unwrap();
+        reset_for_session(7);
+        reset_for_session(8);
+        let mut data = vec![0u8; 512];
+        let nal = sei_nal();
+        data[100..100 + nal.len()].copy_from_slice(&nal);
+        assert_eq!(scan_chunk_for_session(7, 0, &[], &data), Some(103));
+        assert!(detected_for_session(7));
+        assert!(!detected_for_session(8));
+        reset_for_session(7);
+        assert!(!detected_for_session(7));
+        assert!(!detected_for_session(8));
     }
 
     #[test]

@@ -10,3 +10,10 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// (ST 2094-40 SEI) bulundu mu?
 Future<bool> hdr10PlusDetected() =>
     RustLib.instance.api.crateApiHdr10Hdr10PlusDetected();
+
+/// Belirli bir oynatma oturumunda HDR10+ dinamik meta verisi bulundu mu?
+/// Çoklu oynatma sekmeleri birbirlerinin bayrağını görmez.
+Future<bool> hdr10PlusDetectedFor({required BigInt sessionId}) => RustLib
+    .instance
+    .api
+    .crateApiHdr10Hdr10PlusDetectedFor(sessionId: sessionId);

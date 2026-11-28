@@ -8,6 +8,7 @@
 //! Kimlik bilgileri yalnızca çağrı parametresi olarak gelir; Rust bunları
 //! diske yazmaz, loglamaz.
 
+use std::collections::HashMap;
 use std::io::Read;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -32,18 +33,17 @@ use crate::engine::yenc;
 pub(crate) static RUNTIME: Lazy<Runtime> =
     Lazy::new(|| Runtime::new().expect("could not create tokio runtime"));
 
-/// Uygulama şu anda tek oynatıcı oturumu çalıştırır. Önceki localhost server
-/// kaydedilmeden bırakılırsa taşıdığı NNTP havuzu ve boşta TLS bağlantıları
-/// sonsuza dek açık kalır. Aktif görevi kimliğiyle saklayarak hem yeni stream
-/// öncesinde hem de Flutter ekranı kapanırken deterministik olarak durdururuz.
+/// Her oynatma sekmesi kendi localhost server'ını ve NNTP havuzunu çalıştırır.
+/// Oturumlar kimlikleriyle saklanır; yeni bir begin başka bir oturumu iptal
+/// etmez ve her stop yalnız hedef session'ın görevlerini kapatır.
 struct ActiveStream {
-    session_id: u64,
     cancel: watch::Sender<bool>,
     task: JoinHandle<()>,
     ready: Option<oneshot::Receiver<Result<StreamInfo, String>>>,
 }
 
-static ACTIVE_STREAM: Lazy<Mutex<Option<ActiveStream>>> = Lazy::new(|| Mutex::new(None));
+static ACTIVE_STREAMS: Lazy<Mutex<HashMap<u64, ActiveStream>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 static NEXT_SESSION_ID: AtomicU64 = AtomicU64::new(1);
 const MAX_NZB_FILE_BYTES: usize = 64 * 1024 * 1024;
 const NZB_READ_CHUNK_BYTES: usize = 64 * 1024;
@@ -106,19 +106,17 @@ pub struct PlayableEntryDto {
 
 #[cfg(test)]
 fn take_active_stream(session_id: Option<u64>) -> Option<ActiveStream> {
-    let mut active = ACTIVE_STREAM.lock().expect("aktif stream kilidi");
-    let matches = active
-        .as_ref()
-        .is_some_and(|stream| session_id.is_none_or(|expected| expected == stream.session_id));
-    matches.then(|| active.take()).flatten()
+    let mut active = ACTIVE_STREAMS.lock().expect("aktif stream kilidi");
+    match session_id {
+        Some(expected) => active.remove(&expected),
+        None => active.drain().map(|(_, stream)| stream).next(),
+    }
 }
 
+#[cfg(test)]
 fn cancel_active_stream(session_id: u64) -> bool {
-    let active = ACTIVE_STREAM.lock().expect("aktif stream kilidi");
-    let Some(stream) = active
-        .as_ref()
-        .filter(|stream| stream.session_id == session_id)
-    else {
+    let active = ACTIVE_STREAMS.lock().expect("aktif stream kilidi");
+    let Some(stream) = active.get(&session_id) else {
         return false;
     };
     let _ = stream.cancel.send(true);
@@ -432,7 +430,9 @@ async fn probe_numbered_set(
     // dosya başlıkları şifrelidir). Son cilt doğrulanmış bir ana ciltse eski
     // usul (.rar sonda) sayılıp set döndürülür.
     let mut volumes = volumes;
-    let last = volumes.pop().expect("numbered set has at least two volumes");
+    let last = volumes
+        .pop()
+        .expect("numbered set has at least two volumes");
     let tail = fetch_first_segment(pool, &last, cancellation).await?;
     let tail_kind = sniff_archive_kind(&tail);
     let tail_is_archive_start = match tail_kind {
@@ -578,7 +578,11 @@ fn implied_number(known: &[u64]) -> Option<u64> {
     }
     let min = known.first().copied()?;
     let max = known.last().copied()?;
-    if min >= 1 { Some(min - 1) } else { Some(max + 1) }
+    if min >= 1 {
+        Some(min - 1)
+    } else {
+        Some(max + 1)
+    }
 }
 
 /// Orta ciltlerin ilk segmentlerini eşzamanlı çeker; dönüş `files` ile aynı
@@ -594,9 +598,11 @@ async fn fetch_middle_first_segments(
         let pool = Arc::clone(pool);
         let file = file.clone();
         let cancellation = cancellation.clone();
-        set.spawn(
-            async move { fetch_first_segment(&pool, &file, &cancellation).await.map(|head| (index, head)) },
-        );
+        set.spawn(async move {
+            fetch_first_segment(&pool, &file, &cancellation)
+                .await
+                .map(|head| (index, head))
+        });
     }
     let mut indexed = Vec::with_capacity(files.len());
     while let Some(result) = set.join_next().await {
@@ -767,34 +773,26 @@ async fn run_stream_session(
     entry_key: Option<String>,
     cancellation: watch::Receiver<bool>,
     ready: oneshot::Sender<Result<StreamInfo, String>>,
-    previous: Option<ActiveStream>,
 ) {
-    // Oturumlar zincir halinde kapanır: yeni ağ işi, önceki server ve onun tüm
-    // HTTP/NNTP görevleri gerçekten düştükten sonra başlayabilir.
-    if let Some(previous) = previous {
-        terminate_stream(previous).await;
-    }
-
     if cancellation_requested(&cancellation) {
         let _ = ready.send(Err("stream startup cancelled".into()));
         return;
     }
 
-    // Dosya okuma/parse oturum kurulduktan sonra yapılır. Eski bir begin
-    // çağrısı yavaş kalsa bile daha yeni oturum onu iptal eder ve bitmesini
-    // bekler; sonuçların sırası tersine dönemez.
+    // Dosya okuma/parse oturum kurulduktan sonra yapılır ve yalnız bu
+    // session'ın iptal sinyaliyle durdurulur; diğer sekmelerden bağımsızdır.
     let selection =
         match load_stream_selection(nzb_path.clone(), entry_key, cancellation.clone()).await {
-        Ok(selection) if !cancellation_requested(&cancellation) => selection,
-        Ok(_) => {
-            let _ = ready.send(Err("stream startup cancelled".into()));
-            return;
-        }
-        Err(error) => {
-            let _ = ready.send(Err(error));
-            return;
-        }
-    };
+            Ok(selection) if !cancellation_requested(&cancellation) => selection,
+            Ok(_) => {
+                let _ = ready.send(Err("stream startup cancelled".into()));
+                return;
+            }
+            Err(error) => {
+                let _ = ready.send(Err(error));
+                return;
+            }
+        };
 
     let source = match prepare_stream_source(config, selection, cancellation.clone()).await {
         Ok(source) => source,
@@ -806,9 +804,8 @@ async fn run_stream_session(
 
     // Önceki bir onarım oturumundan kalan katman varsa kur: hasarlı bölgeler
     // artık ağa çıkılmadan yerelden servis edilir.
-    let overlay_dir = crate::engine::repair::RepairOverlay::dir_for_nzb(
-        std::path::Path::new(nzb_path.as_str()),
-    );
+    let overlay_dir =
+        crate::engine::repair::RepairOverlay::dir_for_nzb(std::path::Path::new(nzb_path.as_str()));
     match crate::engine::repair::RepairOverlay::load(&overlay_dir) {
         Ok(Some(overlay)) => source.install_overlay(&overlay),
         Ok(None) => {}
@@ -877,32 +874,35 @@ async fn run_stream_session(
 
     // Yeni akış oturumu: HDR10+ tarama bayrağı sıfırdan başlar
     // (srv yazma ucundaki tarama bu oturumun bayrağını atar).
-    crate::engine::hdr10plus::reset();
+    crate::engine::hdr10plus::reset_for_session(session_id);
     let source = Arc::new(source);
     match lan_listener {
         Some(lan) => {
             let prefix: Arc<str> = Arc::from(format!("/cast/{cast_token}/"));
             let _ = tokio::join!(
-                server::serve_until(
+                server::serve_until_with_session(
                     listener,
                     Arc::clone(&source),
                     None,
                     wait_for_cancellation(cancellation.clone()),
+                    session_id,
                 ),
-                server::serve_until(
+                server::serve_until_with_session(
                     lan,
                     source,
                     Some(prefix),
                     wait_for_cancellation(cancellation),
+                    session_id,
                 ),
             );
         }
         None => {
-            let _ = server::serve_until(
+            let _ = server::serve_until_with_session(
                 listener,
                 source,
                 None,
                 wait_for_cancellation(cancellation),
+                session_id,
             )
             .await;
         }
@@ -1248,11 +1248,11 @@ pub fn begin_stream(config: ProviderConfigDto, nzb_path: String, entry_key: Opti
     let (cancel, cancellation) = watch::channel(false);
     let (ready, ready_result) = oneshot::channel();
 
-    // Take + spawn + install tek kısa kritik bölgede yapılır. Eşzamanlı yeni
-    // bir start çağrısı bu görevi "previous" olarak devralıp önce iptal eder;
-    // ağ I/O'su sırasında hiçbir std::sync::Mutex tutulmaz.
-    let mut active = ACTIVE_STREAM.lock().expect("aktif stream kilidi");
-    let previous = active.take();
+    // Spawn + install tek kısa kritik bölgede yapılır; başka oturumlara
+    // dokunulmaz ve ağ I/O'su sırasında std::sync::Mutex tutulmaz.
+    let mut active = ACTIVE_STREAMS.lock().expect("aktif stream kilidi");
+    // Beklenmeyen biçimde biten eski görevlerin handle'larını biriktirme.
+    active.retain(|_, stream| !stream.task.is_finished());
     let task = RUNTIME.spawn(run_stream_session(
         session_id,
         config,
@@ -1260,14 +1260,15 @@ pub fn begin_stream(config: ProviderConfigDto, nzb_path: String, entry_key: Opti
         entry_key,
         cancellation,
         ready,
-        previous,
     ));
-    *active = Some(ActiveStream {
+    active.insert(
         session_id,
-        cancel,
-        task,
-        ready: Some(ready_result),
-    });
+        ActiveStream {
+            cancel,
+            task,
+            ready: Some(ready_result),
+        },
+    );
     drop(active);
 
     session_id
@@ -1278,10 +1279,9 @@ pub fn begin_stream(config: ProviderConfigDto, nzb_path: String, entry_key: Opti
 /// hata döner; hiçbir global kilit ağ I/O'su boyunca tutulmaz.
 pub fn await_stream(session_id: u64) -> Result<StreamInfo, String> {
     let (ready_result, cancellation) = {
-        let mut active = ACTIVE_STREAM.lock().expect("aktif stream kilidi");
+        let mut active = ACTIVE_STREAMS.lock().expect("aktif stream kilidi");
         let stream = active
-            .as_mut()
-            .filter(|stream| stream.session_id == session_id)
+            .get_mut(&session_id)
             .ok_or_else(|| "stream session is no longer active".to_string())?;
         let ready = stream
             .ready
@@ -1292,11 +1292,8 @@ pub fn await_stream(session_id: u64) -> Result<StreamInfo, String> {
 
     let result = RUNTIME.block_on(wait_for_stream_ready(ready_result, cancellation));
 
-    // Kayıt yerinde kalır: eşzamanlı yeni bir begin çağrısı onu `previous`
-    // olarak devralıp görev tamamen kapanana dek bekler. Önce kaydı kaldırmak,
-    // eski TLS oturumları drain olurken yeni havuzun başlamasına yol açardı.
     if result.is_err() {
-        cancel_active_stream(session_id);
+        stop_stream(session_id);
     }
     result
 }
@@ -1311,10 +1308,19 @@ pub fn start_stream(config: ProviderConfigDto, nzb_path: String) -> Result<Strea
 /// Verilen oynatıcı oturumuna ait localhost server'ı ve tüm açık HTTP/NNTP
 /// görevlerini durdurur. Kimlik artık aktif değilse yeni bir oturuma dokunmaz.
 pub fn stop_stream(session_id: u64) -> bool {
-    // Kaydı burada kaldırmayız. Görev watch sinyaliyle kendi graceful kapanış
-    // yolunu tamamlar; yeni begin aynı kaydı devralıp task'ı await ederek eski
-    // bağlantılar düşmeden yeni sağlayıcı oturumu açamaz.
-    cancel_active_stream(session_id)
+    let stream = ACTIVE_STREAMS
+        .lock()
+        .expect("aktif stream kilidi")
+        .remove(&session_id);
+    let Some(stream) = stream else {
+        return false;
+    };
+    crate::engine::hdr10plus::reset_for_session(session_id);
+    let _ = stream.cancel.send(true);
+    // Kayıt hemen çıkarılır; graceful kapanış ve HTTP child drain arka planda
+    // tamamlanır. Başka oturumların server/NNTP görevleri etkilenmez.
+    RUNTIME.spawn(terminate_stream(stream));
+    true
 }
 
 /// URL yol bileşeni için minimal yüzde-kodlama (boşluk ve URL-güvensiz
@@ -1335,6 +1341,8 @@ fn url_encode_path(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    static TEST_SESSION_LOCK: Mutex<()> = Mutex::new(());
 
     fn file(subject: &str, segments: u32, bytes: u64) -> NzbFile {
         NzbFile {
@@ -1437,38 +1445,86 @@ mod tests {
 
     #[test]
     fn stop_kimligi_yeni_veya_farkli_oturumu_almaz() {
+        let _guard = TEST_SESSION_LOCK.lock().expect("session test lock");
         assert!(take_active_stream(None).is_none());
 
         let (cancel, cancellation) = watch::channel(false);
         let task = RUNTIME.spawn(wait_for_cancellation(cancellation));
-        *ACTIVE_STREAM.lock().expect("aktif stream test kilidi") = Some(ActiveStream {
-            session_id: 42,
-            cancel,
-            task,
-            ready: None,
-        });
-
-        assert!(!cancel_active_stream(41));
-        assert_eq!(
-            ACTIVE_STREAM
-                .lock()
-                .expect("aktif stream test kilidi")
-                .as_ref()
-                .map(|stream| stream.session_id),
-            Some(42)
-        );
-        assert!(cancel_active_stream(42));
-        assert!(ACTIVE_STREAM
+        ACTIVE_STREAMS
             .lock()
             .expect("aktif stream test kilidi")
-            .is_some());
+            .insert(
+                42,
+                ActiveStream {
+                    cancel,
+                    task,
+                    ready: None,
+                },
+            );
+
+        assert!(!cancel_active_stream(41));
+        assert!(ACTIVE_STREAMS
+            .lock()
+            .expect("aktif stream test kilidi")
+            .contains_key(&42));
+        assert!(cancel_active_stream(42));
+        assert!(ACTIVE_STREAMS
+            .lock()
+            .expect("aktif stream test kilidi")
+            .contains_key(&42));
 
         let active = take_active_stream(Some(42)).expect("expected the correct session");
         RUNTIME.block_on(terminate_stream(active));
-        assert!(ACTIVE_STREAM
+        assert!(ACTIVE_STREAMS
             .lock()
             .expect("aktif stream test kilidi")
-            .is_none());
+            .is_empty());
+    }
+
+    #[test]
+    fn paralel_oturumlardan_biri_digerini_kapatmaz() {
+        let _guard = TEST_SESSION_LOCK.lock().expect("session test lock");
+        assert!(take_active_stream(None).is_none());
+        let (cancel_a, cancellation_a) = watch::channel(false);
+        let (cancel_b, cancellation_b) = watch::channel(false);
+        ACTIVE_STREAMS
+            .lock()
+            .expect("aktif stream test kilidi")
+            .extend([
+                (
+                    51,
+                    ActiveStream {
+                        cancel: cancel_a,
+                        task: RUNTIME.spawn(wait_for_cancellation(cancellation_a.clone())),
+                        ready: None,
+                    },
+                ),
+                (
+                    52,
+                    ActiveStream {
+                        cancel: cancel_b,
+                        task: RUNTIME.spawn(wait_for_cancellation(cancellation_b.clone())),
+                        ready: None,
+                    },
+                ),
+            ]);
+
+        assert!(stop_stream(51));
+        assert!(!stop_stream(51));
+        assert!(!stop_stream(99));
+        assert!(*cancellation_a.borrow());
+        assert!(!*cancellation_b.borrow());
+        assert!(ACTIVE_STREAMS
+            .lock()
+            .expect("aktif stream test kilidi")
+            .contains_key(&52));
+
+        let active = take_active_stream(Some(52)).expect("second session must remain");
+        RUNTIME.block_on(terminate_stream(active));
+        assert!(ACTIVE_STREAMS
+            .lock()
+            .expect("aktif stream test kilidi")
+            .is_empty());
     }
 
     #[test]
@@ -1615,9 +1671,21 @@ mod tests {
         let parsed = nzb::Nzb {
             meta: vec![("password".into(), "TESTPASS123".into())],
             files: vec![
-                file("\"33dce3ecfd2d186566653db06253ceba.par2\" yEnc (1/1)", 1, 10),
-                file("\"33dce3ecfd2d186566653db06253ceba.11\" yEnc (1/1)", 1, 1000),
-                file("\"33dce3ecfd2d186566653db06253ceba.10\" yEnc (1/1)", 1, 1000),
+                file(
+                    "\"33dce3ecfd2d186566653db06253ceba.par2\" yEnc (1/1)",
+                    1,
+                    10,
+                ),
+                file(
+                    "\"33dce3ecfd2d186566653db06253ceba.11\" yEnc (1/1)",
+                    1,
+                    1000,
+                ),
+                file(
+                    "\"33dce3ecfd2d186566653db06253ceba.10\" yEnc (1/1)",
+                    1,
+                    1000,
+                ),
             ],
         };
         let selection = select_stream(&parsed).unwrap();
@@ -1728,9 +1796,8 @@ mod tests {
         // geriye dönük uyum bozulmaz).
         assert_eq!(entries[0].key, "direct:Pack.Dir/Show.E9.1080p.mkv");
 
-        let selection =
-            select_stream_by_key(&parsed, "direct:Pack.Dir/Show.E10.1080p.mkv")
-                .expect("keyed selection with full path");
+        let selection = select_stream_by_key(&parsed, "direct:Pack.Dir/Show.E10.1080p.mkv")
+            .expect("keyed selection with full path");
         let StreamSelection::Direct(file) = selection else {
             panic!("expected Direct selection");
         };

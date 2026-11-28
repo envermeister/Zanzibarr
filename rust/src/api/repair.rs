@@ -54,15 +54,29 @@ pub struct RepairReportDto {
 }
 
 struct ActiveRepair {
-    session_id: u64,
     cancel: watch::Sender<bool>,
     task: JoinHandle<()>,
     ready: Option<oneshot::Receiver<Result<RepairReportDto, String>>>,
     progress: Arc<Mutex<RepairProgressDto>>,
 }
 
-static ACTIVE_REPAIR: Lazy<Mutex<Option<ActiveRepair>>> = Lazy::new(|| Mutex::new(None));
+static ACTIVE_REPAIRS: Lazy<Mutex<HashMap<u64, ActiveRepair>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static ACTIVE_REPAIR_PATHS: Lazy<Mutex<std::collections::HashSet<String>>> =
+    Lazy::new(|| Mutex::new(std::collections::HashSet::new()));
 static NEXT_REPAIR_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Aynı NZB'nin paylaşılan overlay dizinine iki onarım yazmasını önler.
+struct RepairPathGuard(String);
+
+impl Drop for RepairPathGuard {
+    fn drop(&mut self) {
+        ACTIVE_REPAIR_PATHS
+            .lock()
+            .expect("active repair paths lock")
+            .remove(&self.0);
+    }
+}
 
 // ---------------------------------------------------------------------------
 // NNTP fetcher — toleranslı dilim okuyucu
@@ -127,11 +141,7 @@ impl NntpRepairFetcher {
     }
 
     /// Segmenti çeker, yEnc çözer, konumunu eşleyiciye kaydeder.
-    async fn fetch_segment(
-        &self,
-        name: &str,
-        index: usize,
-    ) -> std::io::Result<Arc<Vec<u8>>> {
+    async fn fetch_segment(&self, name: &str, index: usize) -> std::io::Result<Arc<Vec<u8>>> {
         let locator = self.locator_for(name).map_err(std::io::Error::other)?;
         let cache = self.cache_for(name);
         if let Some(data) = cache.lock().expect("cache").get(index) {
@@ -150,16 +160,18 @@ impl NntpRepairFetcher {
                 .checkout()
                 .await
                 .map_err(|error| std::io::Error::other(error.to_string()))?;
-            let body =
-                match read_body_with_timeout(BODY_READ_TIMEOUT, conn.body_by_message_id(&message_id))
-                    .await
-                {
-                    Ok(body) => {
-                        conn.mark_reusable();
-                        body
-                    }
-                    Err(error) => return Err(std::io::Error::other(error.to_string())),
-                };
+            let body = match read_body_with_timeout(
+                BODY_READ_TIMEOUT,
+                conn.body_by_message_id(&message_id),
+            )
+            .await
+            {
+                Ok(body) => {
+                    conn.mark_reusable();
+                    body
+                }
+                Err(error) => return Err(std::io::Error::other(error.to_string())),
+            };
             drop(conn);
             yenc::decode(&body).map_err(|error| std::io::Error::other(error.to_string()))
         };
@@ -186,16 +198,15 @@ impl NntpRepairFetcher {
             }
         }
         let data = Arc::new(part.data.clone());
-        cache.lock().expect("cache").insert(index, Arc::clone(&data));
+        cache
+            .lock()
+            .expect("cache")
+            .insert(index, Arc::clone(&data));
         Ok(data)
     }
 
     /// `offset`'i içeren segmenti ve span'ini bulur; gerekiyorsa çeker.
-    async fn locate(
-        &self,
-        name: &str,
-        offset: u64,
-    ) -> std::io::Result<(usize, Range<u64>)> {
+    async fn locate(&self, name: &str, offset: u64) -> std::io::Result<(usize, Range<u64>)> {
         let locator = self.locator_for(name).map_err(std::io::Error::other)?;
         loop {
             let outcome = {
@@ -299,15 +310,8 @@ pub fn begin_repair(config: ProviderConfigDto, nzb_path: String) -> u64 {
         detail: String::new(),
     }));
 
-    let mut active = ACTIVE_REPAIR.lock().expect("active repair lock");
-    if let Some(previous) = active.take() {
-        let _ = previous.cancel.send(true);
-        // Önceki görevin kapanmasını bekletmek için yeni göreve taşınır.
-        RUNTIME.spawn(async move {
-            let _ = previous.task.await;
-        });
-    }
-
+    let mut active = ACTIVE_REPAIRS.lock().expect("active repair lock");
+    active.retain(|_, repair| !repair.task.is_finished());
     let task = RUNTIME.spawn(run_repair_session(
         config,
         nzb_path,
@@ -315,22 +319,22 @@ pub fn begin_repair(config: ProviderConfigDto, nzb_path: String) -> u64 {
         ready,
         Arc::clone(&progress),
     ));
-    *active = Some(ActiveRepair {
+    active.insert(
         session_id,
-        cancel,
-        task,
-        ready: Some(ready_result),
-        progress,
-    });
+        ActiveRepair {
+            cancel,
+            task,
+            ready: Some(ready_result),
+            progress,
+        },
+    );
     session_id
 }
 
 /// Oturumun son ilerleme anlığını döndürür; oturum yoksa None.
 pub fn repair_progress(session_id: u64) -> Option<RepairProgressDto> {
-    let active = ACTIVE_REPAIR.lock().expect("active repair lock");
-    let repair = active
-        .as_ref()
-        .filter(|repair| repair.session_id == session_id)?;
+    let active = ACTIVE_REPAIRS.lock().expect("active repair lock");
+    let repair = active.get(&session_id)?;
     let progress = repair.progress.lock().expect("ilerleme kilidi");
     Some(RepairProgressDto {
         phase: progress.phase.clone(),
@@ -342,17 +346,15 @@ pub fn repair_progress(session_id: u64) -> Option<RepairProgressDto> {
 
 /// Oturum sonucunu bekler. Oturum iptal edilmişse açık hata döner.
 pub fn await_repair(session_id: u64) -> Result<RepairReportDto, String> {
-    let (ready_result, cancel) = {
-        let mut active = ACTIVE_REPAIR.lock().expect("active repair lock");
+    let ready_result = {
+        let mut active = ACTIVE_REPAIRS.lock().expect("active repair lock");
         let repair = active
-            .as_mut()
-            .filter(|repair| repair.session_id == session_id)
+            .get_mut(&session_id)
             .ok_or_else(|| "repair session is no longer active".to_string())?;
-        let ready = repair
+        repair
             .ready
             .take()
-            .ok_or_else(|| "repair result already expected".to_string())?;
-        (ready, repair.cancel.clone())
+            .ok_or_else(|| "repair result already expected".to_string())?
     };
 
     let result = RUNTIME.block_on(async move {
@@ -362,21 +364,24 @@ pub fn await_repair(session_id: u64) -> Result<RepairReportDto, String> {
         }
     });
     if result.is_err() {
-        let _ = cancel.send(true);
+        cancel_repair(session_id);
     }
     result
 }
 
 /// Oturumu iptal eder. Kimlik artık aktif değilse false döner.
 pub fn cancel_repair(session_id: u64) -> bool {
-    let active = ACTIVE_REPAIR.lock().expect("active repair lock");
-    let Some(repair) = active
-        .as_ref()
-        .filter(|repair| repair.session_id == session_id)
-    else {
+    let repair = ACTIVE_REPAIRS
+        .lock()
+        .expect("active repair lock")
+        .remove(&session_id);
+    let Some(repair) = repair else {
         return false;
     };
     let _ = repair.cancel.send(true);
+    RUNTIME.spawn(async move {
+        let _ = repair.task.await;
+    });
     true
 }
 
@@ -397,6 +402,14 @@ async fn run_repair_inner(
     cancellation: watch::Receiver<bool>,
     progress: Arc<Mutex<RepairProgressDto>>,
 ) -> Result<RepairReportDto, String> {
+    {
+        let mut paths = ACTIVE_REPAIR_PATHS.lock().expect("active repair paths lock");
+        if !paths.insert(nzb_path.clone()) {
+            return Err("a repair for this NZB is already active".into());
+        }
+    }
+    let _path_guard = RepairPathGuard(nzb_path.clone());
+
     // NZB'yi oku ve .par2 dosyalarını topla.
     let path_for_read = nzb_path.clone();
     let nzb_bytes = tokio::task::spawn_blocking(move || std::fs::read(&path_for_read))
@@ -466,4 +479,140 @@ async fn run_repair_inner(
         clean: report.overlay_dir.is_none(),
         overlay_active: report.overlay_dir.is_some(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn repair_for_test(cancel: watch::Sender<bool>, task: JoinHandle<()>) -> ActiveRepair {
+        ActiveRepair {
+            cancel,
+            task,
+            ready: None,
+            progress: Arc::new(Mutex::new(RepairProgressDto {
+                phase: "loading".into(),
+                completed_bytes: 0,
+                total_bytes: 0,
+                detail: String::new(),
+            })),
+        }
+    }
+
+    #[test]
+    fn paralel_onarimlardan_biri_digerini_iptal_etmez() {
+        let (cancel_a, cancellation_a) = watch::channel(false);
+        let (cancel_b, cancellation_b) = watch::channel(false);
+        let task_cancellation_a = cancellation_a.clone();
+        let task_cancellation_b = cancellation_b.clone();
+        ACTIVE_REPAIRS
+            .lock()
+            .expect("active repair test lock")
+            .extend([
+                (
+                    61,
+                    repair_for_test(
+                        cancel_a,
+                        RUNTIME.spawn(async move {
+                            let mut cancellation = task_cancellation_a.clone();
+                            let _ = cancellation.changed().await;
+                        }),
+                    ),
+                ),
+                (
+                    62,
+                    repair_for_test(
+                        cancel_b,
+                        RUNTIME.spawn(async move {
+                            let mut cancellation = task_cancellation_b.clone();
+                            let _ = cancellation.changed().await;
+                        }),
+                    ),
+                ),
+            ]);
+
+        assert!(cancel_repair(61));
+        assert!(!cancel_repair(61));
+        assert!(!cancel_repair(99));
+        assert!(!*cancellation_b.borrow());
+        assert!(ACTIVE_REPAIRS
+            .lock()
+            .expect("active repair test lock")
+            .contains_key(&62));
+
+        let remaining = ACTIVE_REPAIRS
+            .lock()
+            .expect("active repair test lock")
+            .remove(&62)
+            .expect("second repair must remain");
+        let _ = remaining.cancel.send(true);
+        RUNTIME.block_on(async move {
+            let _ = remaining.task.await;
+        });
+        assert!(ACTIVE_REPAIRS
+            .lock()
+            .expect("active repair test lock")
+            .is_empty());
+    }
+
+    #[test]
+    fn ayni_nzb_onarimi_tekil_ve_guard_temiz() {
+        fn config() -> ProviderConfigDto {
+            ProviderConfigDto {
+                host: "127.0.0.1".into(),
+                port: 1,
+                username: String::new(),
+                password: String::new(),
+                max_connections: 1,
+            }
+        }
+
+        let path = "/tmp/zanzibarr-repair-path-guard-missing.nzb".to_string();
+        let (_, cancellation) = watch::channel(false);
+        let progress = Arc::new(Mutex::new(RepairProgressDto {
+            phase: "loading".into(),
+            completed_bytes: 0,
+            total_bytes: 0,
+            detail: String::new(),
+        }));
+        let first = match RUNTIME.block_on(run_repair_inner(
+            config(),
+            path.clone(),
+            cancellation.clone(),
+            progress.clone(),
+        )) {
+            Err(error) => error,
+            Ok(_) => panic!("missing NZB must fail during normal loading"),
+        };
+        assert!(first.contains("could not read NZB"), "unexpected error: {first}");
+        assert!(!ACTIVE_REPAIR_PATHS
+            .lock()
+            .expect("active repair paths test lock")
+            .contains(&path));
+
+        ACTIVE_REPAIR_PATHS
+            .lock()
+            .expect("active repair paths test lock")
+            .insert(path.clone());
+        let second = match RUNTIME.block_on(run_repair_inner(
+            config(),
+            path.clone(),
+            cancellation.clone(),
+            progress.clone(),
+        )) {
+            Err(error) => error,
+            Ok(_) => panic!("same-NZB repair must be rejected"),
+        };
+        assert!(second.contains("already active"));
+
+        ACTIVE_REPAIR_PATHS
+            .lock()
+            .expect("active repair paths test lock")
+            .remove(&path);
+        let third = match RUNTIME.block_on(run_repair_inner(config(), path, cancellation, progress)) {
+            Err(error) => error,
+            Ok(_) => panic!("missing NZB must fail during normal loading"),
+        };
+        assert!(third.contains("could not read NZB"), "unexpected error: {third}");
+    }
 }

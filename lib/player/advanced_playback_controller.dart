@@ -344,6 +344,8 @@ class AdvancedPlaybackController {
   double? aspectRatioOverride;
   VideoPreset videoPreset = VideoPreset.natural;
   UpscalingPreset upscalingPreset = UpscalingPreset.balanced;
+  double sharpening = 0.0;
+  bool frameInterpolation = false;
   AudioPreset audioPreset = AudioPreset.balanced;
   HdrMode hdrMode = HdrMode.sdr;
   bool hardwareDecoding = true;
@@ -1008,6 +1010,23 @@ class AdvancedPlaybackController {
   Future<void> setUpscalingPreset(UpscalingPreset value) async {
     await _applyPropertiesWithReadback(_upscalingPresetProperties[value]!);
     upscalingPreset = value;
+  }
+
+  /// GPU-side mpv sharpening. Does not replace the Dolby Vision `vf` graph.
+  Future<void> setSharpening(double value) async {
+    _requireFiniteRange(value, 0, 1, 'Keskinleştirme');
+    await _applyPropertiesWithReadback({'sharpen': _number(value)});
+    sharpening = value;
+  }
+
+  /// mpv display-sync interpolation, not motion-compensated Framegen.
+  Future<void> setFrameInterpolation(bool enabled) async {
+    await _applyPropertiesWithReadback({
+      'video-sync': enabled ? 'display-resample' : 'audio',
+      'interpolation': enabled ? 'yes' : 'no',
+      'tscale': 'oversample',
+    });
+    frameInterpolation = enabled;
   }
 
   Future<void> setAudioPreset(AudioPreset value) async {

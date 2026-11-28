@@ -13,7 +13,7 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final platform = currentTvPlatform;
   PlayerLauncher.register(
-    ({required nzbPath, initialEntryKey}) => TvPlayerScreen(
+    ({key, required nzbPath, initialEntryKey, tabProfile, onRequestClose}) => TvPlayerScreen(
       nzbPath: nzbPath,
       initialEntryKey: initialEntryKey,
       platform: platform,

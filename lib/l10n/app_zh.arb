@@ -9,6 +9,18 @@
   "themeDark": "深色",
   "themeLight": "浅色",
   "advancedSettings": "高级设置",
+  "openInNewTab": "Open in new tab",
+  "closeTabTooltip": "Close tab",
+  "openInBrowser": "Open in browser",
+  "browserOpened": "Opened in browser. Local playback is paused; codec support depends on the browser.",
+  "browserOpenFailed": "Could not open the browser: {error}",
+  "sharpeningLabel": "Sharpening",
+  "frameInterpolationLabel": "Frame interpolation",
+  "@browserOpenFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
   "play": "播放",
   "pause": "暂停",
   "selectNzbAndPlay": "选择 NZB 并播放",

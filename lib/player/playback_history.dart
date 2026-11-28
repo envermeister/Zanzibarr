@@ -1,6 +1,23 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'media_preferences.dart';
+
+Future<void> _historyMutationTail = Future<void>.value();
+
+/// Serializes read-modify-write JSON list mutations across player tabs.
+Future<void> _serializedHistoryMutation(Future<void> Function() operation) {
+  final result = Completer<void>();
+  _historyMutationTail = _historyMutationTail.then((_) async {
+    try {
+      await operation();
+      result.complete();
+    } catch (error, stackTrace) {
+      result.completeError(error, stackTrace);
+    }
+  });
+  return result.future;
+}
 
 /// Bir medyanın izleme geçmişi kaydı: son konum ve toplam süre.
 ///
@@ -174,9 +191,7 @@ class WatchedEpisodeStore {
       if (decoded is! Map) return const [];
       final list = decoded['entries'];
       if (list is! List) return const [];
-      return [
-        for (final item in list) ?WatchedEpisodeEntry.fromJson(item),
-      ];
+      return [for (final item in list) ?WatchedEpisodeEntry.fromJson(item)];
     } on FormatException {
       return const [];
     }
@@ -193,41 +208,45 @@ class WatchedEpisodeStore {
 
   /// Kaydı ekler veya günceller; liste [_maxEntries] kaydı aşmaz
   /// (en eski izlenme düşer).
-  Future<void> add(WatchedEpisodeEntry entry) async {
-    final entries = List.of(await load());
-    entries.removeWhere(
-      (existing) =>
-          existing.nzbPath == entry.nzbPath &&
-          existing.entryKey == entry.entryKey,
-    );
-    entries.insert(0, entry);
-    if (entries.length > _maxEntries) {
-      entries.removeRange(_maxEntries, entries.length);
-    }
-    await _storage.write(
-      storageKey,
-      jsonEncode(<String, Object>{
-        'version': 1,
-        'entries': [for (final item in entries) item.toJson()],
-      }),
-    );
+  Future<void> add(WatchedEpisodeEntry entry) {
+    return _serializedHistoryMutation(() async {
+      final entries = List.of(await load());
+      entries.removeWhere(
+        (existing) =>
+            existing.nzbPath == entry.nzbPath &&
+            existing.entryKey == entry.entryKey,
+      );
+      entries.insert(0, entry);
+      if (entries.length > _maxEntries) {
+        entries.removeRange(_maxEntries, entries.length);
+      }
+      await _storage.write(
+        storageKey,
+        jsonEncode(<String, Object>{
+          'version': 1,
+          'entries': [for (final item in entries) item.toJson()],
+        }),
+      );
+    });
   }
 
   /// Kaydı siler; [entryKey] verilmezse NZB'nin tüm bölüm kayıtları düşer.
-  Future<void> remove(String nzbPath, {String? entryKey}) async {
-    final entries = List.of(await load());
-    entries.removeWhere(
-      (existing) =>
-          existing.nzbPath == nzbPath &&
-          (entryKey == null || existing.entryKey == entryKey),
-    );
-    await _storage.write(
-      storageKey,
-      jsonEncode(<String, Object>{
-        'version': 1,
-        'entries': [for (final item in entries) item.toJson()],
-      }),
-    );
+  Future<void> remove(String nzbPath, {String? entryKey}) {
+    return _serializedHistoryMutation(() async {
+      final entries = List.of(await load());
+      entries.removeWhere(
+        (existing) =>
+            existing.nzbPath == nzbPath &&
+            (entryKey == null || existing.entryKey == entryKey),
+      );
+      await _storage.write(
+        storageKey,
+        jsonEncode(<String, Object>{
+          'version': 1,
+          'entries': [for (final item in entries) item.toJson()],
+        }),
+      );
+    });
   }
 }
 
@@ -272,38 +291,42 @@ class PlaybackHistoryStore {
   /// Bölüm anahtarlı ilk kayıt, aynı NZB'nin anahtarsız (eski sürümden
   /// kalan, tüm paket için tek) kaydını da süpürür — yoksa ana ekranda
   /// hedefi artık bulunamayan hayalet bir kart kalırdı.
-  Future<void> save(PlaybackHistoryEntry entry) async {
-    final entries = List.of(await load());
-    entries.removeWhere(
-      (e) =>
-          e.nzbPath == entry.nzbPath &&
-          (e.entryKey == entry.entryKey ||
-              (entry.entryKey != null && e.entryKey == null)),
-    );
-    if (!entry.isCompleted) entries.insert(0, entry);
-    if (entries.length > _maxEntries) {
-      entries.removeRange(_maxEntries, entries.length);
-    }
-    await _storage.write(
-      storageKey,
-      jsonEncode(<String, Object>{
-        'version': 1,
-        'entries': [for (final e in entries) e.toJson()],
-      }),
-    );
+  Future<void> save(PlaybackHistoryEntry entry) {
+    return _serializedHistoryMutation(() async {
+      final entries = List.of(await load());
+      entries.removeWhere(
+        (e) =>
+            e.nzbPath == entry.nzbPath &&
+            (e.entryKey == entry.entryKey ||
+                (entry.entryKey != null && e.entryKey == null)),
+      );
+      if (!entry.isCompleted) entries.insert(0, entry);
+      if (entries.length > _maxEntries) {
+        entries.removeRange(_maxEntries, entries.length);
+      }
+      await _storage.write(
+        storageKey,
+        jsonEncode(<String, Object>{
+          'version': 1,
+          'entries': [for (final e in entries) e.toJson()],
+        }),
+      );
+    });
   }
 
-  Future<void> remove(String nzbPath, {String? entryKey}) async {
-    final entries = List.of(await load());
-    entries.removeWhere(
-      (e) => e.nzbPath == nzbPath && e.entryKey == entryKey,
-    );
-    await _storage.write(
-      storageKey,
-      jsonEncode(<String, Object>{
-        'version': 1,
-        'entries': [for (final e in entries) e.toJson()],
-      }),
-    );
+  Future<void> remove(String nzbPath, {String? entryKey}) {
+    return _serializedHistoryMutation(() async {
+      final entries = List.of(await load());
+      entries.removeWhere(
+        (e) => e.nzbPath == nzbPath && e.entryKey == entryKey,
+      );
+      await _storage.write(
+        storageKey,
+        jsonEncode(<String, Object>{
+          'version': 1,
+          'entries': [for (final e in entries) e.toJson()],
+        }),
+      );
+    });
   }
 }

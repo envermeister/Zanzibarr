@@ -474,6 +474,42 @@ void main() {
     ]);
   });
 
+  test('sharpening sınırlı değerleri readback ile uygulanır', () async {
+    final backend = _FakeBackend();
+    final controller = AdvancedPlaybackController(backend);
+
+    await controller.setSharpening(0.35);
+
+    expect(controller.sharpening, 0.35);
+    expect(backend.properties['sharpen'], '0.350000');
+    expect(backend.properties.containsKey('vf'), isFalse);
+    await expectLater(controller.setSharpening(1.01), throwsRangeError);
+    await expectLater(controller.setSharpening(-0.01), throwsRangeError);
+    await expectLater(controller.setSharpening(double.nan), throwsRangeError);
+  });
+
+  test('frame interpolation aç/kapa mpv display-sync profilini uygular', () async {
+    final backend = _FakeBackend();
+    final controller = AdvancedPlaybackController(backend);
+
+    await controller.setFrameInterpolation(true);
+    expect(controller.frameInterpolation, isTrue);
+    expect(backend.properties, {
+      'video-sync': 'display-resample',
+      'interpolation': 'yes',
+      'tscale': 'oversample',
+    });
+
+    await controller.setFrameInterpolation(false);
+    expect(controller.frameInterpolation, isFalse);
+    expect(backend.properties, {
+      'video-sync': 'audio',
+      'interpolation': 'no',
+      'tscale': 'oversample',
+    });
+    expect(backend.properties.containsKey('vf'), isFalse);
+  });
+
   test(
     'audio presetleri yalnız sabit ve güvenli af değerleri kullanır',
     () async {

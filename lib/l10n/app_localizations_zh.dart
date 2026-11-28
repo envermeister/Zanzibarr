@@ -50,6 +50,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get advancedSettings => '高级设置';
 
   @override
+  String get openInNewTab => 'Open in new tab';
+
+  @override
+  String get closeTabTooltip => 'Close tab';
+
+  @override
+  String get openInBrowser => 'Open in browser';
+
+  @override
+  String get browserOpened =>
+      'Opened in browser. Local playback is paused; codec support depends on the browser.';
+
+  @override
+  String browserOpenFailed(String error) {
+    return 'Could not open the browser: $error';
+  }
+
+  @override
+  String get sharpeningLabel => 'Sharpening';
+
+  @override
+  String get frameInterpolationLabel => 'Frame interpolation';
+
+  @override
   String get play => '播放';
 
   @override

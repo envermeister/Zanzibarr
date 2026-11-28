@@ -9,6 +9,18 @@
   "themeDark": "Sombre",
   "themeLight": "Clair",
   "advancedSettings": "Paramètres avancés",
+  "openInNewTab": "Open in new tab",
+  "closeTabTooltip": "Close tab",
+  "openInBrowser": "Open in browser",
+  "browserOpened": "Opened in browser. Local playback is paused; codec support depends on the browser.",
+  "browserOpenFailed": "Could not open the browser: {error}",
+  "sharpeningLabel": "Sharpening",
+  "frameInterpolationLabel": "Frame interpolation",
+  "@browserOpenFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
   "play": "Lecture",
   "pause": "Pause",
   "selectNzbAndPlay": "Sélectionner un NZB et lire",
