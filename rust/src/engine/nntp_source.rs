@@ -187,7 +187,13 @@ impl FetchContext {
         kick: bool,
     ) -> io::Result<Arc<Vec<u8>>> {
         loop {
-            if let Some(data) = self.cache.lock().expect("kilit").get(index) {
+            // Kilit `let` ifadesinin sonunda düşer. `if let` scrutinee'sinde
+            // kalsaydı kilit bloğun sonuna dek tutulur, aşağıdaki
+            // `spawn_prefetch` aynı mutex'i tekrar istediğinde görev kendi
+            // kendini kilitlerdi (ilk Range isteği hiç yanıtlanmaz, oynatma
+            // başlamaz).
+            let cached = self.cache.lock().expect("kilit").get(index);
+            if let Some(data) = cached {
                 // Only real consumption advances the bounded prefetch window.
                 // Completed tasks never chain more work while playback is paused.
                 if kick && self.prefetch_depth > 0 {
@@ -683,5 +689,70 @@ mod tests {
                 operation: "NNTP BODY"
             })
         ));
+    }
+
+    /// Önbellek isabetinde önden çekim dalgası kurulurken önbellek kilidi
+    /// bırakılmış olmalı. Kilit `if let` scrutinee'sinde tutulursa görev kendi
+    /// mutex'ini ikinci kez ister, sonsuza dek kilitlenir ve ilk Range isteği
+    /// hiç yanıtlanmaz — yani oynatma hiç başlamaz.
+    #[test]
+    fn onbellek_isabeti_kendi_kilidinde_kilitlenmez() {
+        let (done, wait) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .enable_all()
+                .build()
+                .expect("runtime");
+            runtime.block_on(async {
+                let file = NzbFile {
+                    poster: String::new(),
+                    date: None,
+                    subject: "\"test.mkv\" yEnc (1/2)".to_string(),
+                    groups: Vec::new(),
+                    segments: vec![
+                        crate::engine::nzb::NzbSegment {
+                            number: 1,
+                            bytes: 100,
+                            message_id: "a@test".to_string(),
+                        },
+                        crate::engine::nzb::NzbSegment {
+                            number: 2,
+                            bytes: 100,
+                            message_id: "b@test".to_string(),
+                        },
+                    ],
+                };
+                let ctx = Arc::new(FetchContext {
+                    // Dalga yalnız 1. segmenti kuyruklar; bağlantı hiç
+                    // kurulmaz çünkü 127.0.0.1:1 anında reddeder.
+                    pool: TlsNntpConnector::new(crate::engine::nntp::ProviderConfig {
+                        host: "127.0.0.1".to_string(),
+                        port: 1,
+                        username: String::new(),
+                        password: String::new(),
+                        max_connections: 1,
+                    })
+                    .into_pool(),
+                    locator: Mutex::new(SegmentLocator::from_nzb_file(&file)),
+                    cache: Mutex::new(SegmentCache::new(8)),
+                    inflight: Mutex::new(HashSet::new()),
+                    inflight_notify: Notify::new(),
+                    prefetch_gen: AtomicU64::new(0),
+                    prefetch_depth: 2,
+                    cancellation: None,
+                });
+                ctx.cache
+                    .lock()
+                    .expect("kilit")
+                    .insert(0, Arc::new(vec![7u8; 4]));
+                let data = ctx.fetch_and_cache(0).await.expect("önbellek isabeti");
+                assert_eq!(data.len(), 4);
+                assert_eq!(data[0], 7);
+            });
+            let _ = done.send(());
+        });
+        wait.recv_timeout(Duration::from_secs(10))
+            .expect("önbellek isabeti kendi kilidinde kilitlendi");
     }
 }
